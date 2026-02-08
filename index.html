@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>Heizungseffizienz</title>
+    <meta name="description" content="Heizungseffizienz überwachen und optimieren" />
+
+    <link rel="stylesheet" href="./styles.css" />
+    <link rel="manifest" href="./manifest.json" />
+
+    <!-- Icons -->
+    <link rel="apple-touch-icon" href="./icons/icon-192x192.png" />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="./icons/icon-32x32.png"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="16x16"
+      href="./icons/icon-16x16.png"
+    />
+
+    <!-- PWA Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Heizungseffizienz" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <!-- Theme Colors -->
+    <meta
+      name="theme-color"
+      content="#FFFFFF"
+      media="(prefers-color-scheme: light)"
+    />
+    <meta
+      name="theme-color"
+      content="#1E293B"
+      media="(prefers-color-scheme: dark)"
+    />
+  </head>
+  <body>
+    <div class="app">
+      <header>
+        <div class="logo">
+          <div class="logo-img">🏠</div>
+          <div class="header-content">
+            <h1>Heizungseffizienz</h1>
+            <div class="version-info">v1.0</div>
+          </div>
+        </div>
+        <div class="header-actions">
+          <button
+            id="backup-icon"
+            class="header-icon-btn"
+            title="Daten verwalten"
+          >
+            💾
+          </button>
+        </div>
+      </header>
+
+      <main>
+        <!-- Einstellungen Section -->
+        <section class="settings-section">
+          <h2>⚙️ Einstellungen</h2>
+          <div class="settings-compact">
+            <div class="setting-row">
+              <label for="jahresauswahl">Jahr auswählen:</label>
+              <select id="jahresauswahl">
+                <option value="2024">2024</option>
+                <option value="2025">2025</option>
+                <option value="2026">2026</option>
+                <option value="2027">2027</option>
+              </select>
+            </div>
+            <div class="setting-row">
+              <label for="monatsauswahl">Monat auswählen:</label>
+              <select id="monatsauswahl">
+                <option value="0">Alle Monate</option>
+                <option value="1">Januar</option>
+                <option value="2">Februar</option>
+                <option value="3">März</option>
+                <option value="4">April</option>
+                <option value="5">Mai</option>
+                <option value="6">Juni</option>
+                <option value="7">Juli</option>
+                <option value="8">August</option>
+                <option value="9">September</option>
+                <option value="10">Oktober</option>
+                <option value="11">November</option>
+                <option value="12">Dezember</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <!-- Übersicht -->
+        <section class="overview-section">
+          <h2>📊 Übersicht <span id="overview-periode">2024</span></h2>
+          <div class="overview-grid">
+            <div class="overview-card">
+              <h3>Ø COP</h3>
+              <div class="efficiency-value" id="avg-cop">0.0</div>
+            </div>
+            <div class="overview-card">
+              <h3>Gesamt kWh</h3>
+              <div class="amount" id="total-energy">0 kWh</div>
+            </div>
+            <div class="overview-card">
+              <h3>Ø Starts/Tag</h3>
+              <div class="amount" id="avg-starts">0</div>
+            </div>
+            <div class="overview-card" id="efficiency-status">
+              <h3>Effizienz</h3>
+              <div class="status-text" id="efficiency-text">Keine Daten</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Messwerte erfassen -->
+        <section class="add-measurement-section">
+          <h2>📝 Messwerte erfassen</h2>
+          <form id="measurement-form" class="measurement-form">
+            <div class="form-group">
+              <label for="datum-uhrzeit">Datum und Uhrzeit:</label>
+              <input type="datetime-local" id="datum-uhrzeit" required />
+            </div>
+            
+            <div class="form-row">
+              <div class="form-group">
+                <label for="energieverbrauch">Energieverbrauch (kWh):</label>
+                <input
+                  type="number"
+                  id="energieverbrauch"
+                  step="0.1"
+                  min="0"
+                  required
+                  placeholder="0.0"
+                />
+              </div>
+              <div class="form-group">
+                <label for="erzeugte-waerme">Erzeugte Wärme (kWh):</label>
+                <input
+                  type="number"
+                  id="erzeugte-waerme"
+                  step="0.1"
+                  min="0"
+                  required
+                  placeholder="0.0"
+                />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="aussentemperatur">Außentemperatur (°C):</label>
+                <input
+                  type="number"
+                  id="aussentemperatur"
+                  step="0.1"
+                  required
+                  placeholder="0.0"
+                />
+              </div>
+              <div class="form-group">
+                <label for="raumtemperatur">Raumtemperatur (°C):</label>
+                <input
+                  type="number"
+                  id="raumtemperatur"
+                  step="0.1"
+                  min="0"
+                  required
+                  placeholder="20.0"
+                />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="vorlauftemperatur">Vorlauftemperatur (°C):</label>
+                <input
+                  type="number"
+                  id="vorlauftemperatur"
+                  step="0.1"
+                  min="0"
+                  required
+                  placeholder="35.0"
+                />
+              </div>
+              <div class="form-group">
+                <label for="starts-waermepumpe">Starts Wärmepumpe:</label>
+                <input
+                  type="number"
+                  id="starts-waermepumpe"
+                  min="0"
+                  required
+                  placeholder="10"
+                />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="kw-zaehlerstand">kW Zählerstand:</label>
+              <input
+                type="number"
+                id="kw-zaehlerstand"
+                step="0.1"
+                min="0"
+                required
+                placeholder="1234.5"
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="bemerkung">Bemerkung:</label>
+              <textarea
+                id="bemerkung"
+                rows="2"
+                placeholder="z.B. Sehr kalt, windig..."
+              ></textarea>
+            </div>
+
+            <div class="form-buttons">
+              <button type="submit" class="btn-primary">Messwert speichern</button>
+              <button
+                type="button"
+                id="measurement-cancel"
+                class="btn-secondary"
+                style="display: none"
+              >
+                Abbrechen
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <!-- Auswertung -->
+        <section class="chart-section">
+          <h2>📈 Auswertung <span id="chart-periode">2024</span></h2>
+          <div class="chart-container" id="chart-container">
+            <p>Diagramm wird hier angezeigt<br><small>(Chart.js Integration geplant)</small></p>
+          </div>
+        </section>
+
+        <!-- Messwerte Liste -->
+        <section class="measurements-section">
+          <h2>📋 Messwerte <span id="measurements-periode">2024</span></h2>
+          <div id="measurements-list" class="data-list">
+            <!-- Messwerte werden hier dynamisch eingefügt -->
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Modal für Messwert bearbeiten -->
+    <div id="edit-modal" class="modal">
+      <div class="modal-content">
+        <h2>
+          Messwert bearbeiten
+          <span class="close" id="modal-close">&times;</span>
+        </h2>
+        <form id="edit-form">
+          <input type="hidden" id="edit-id" />
+          
+          <div class="form-group">
+            <label for="edit-datum-uhrzeit">Datum und Uhrzeit:</label>
+            <input type="datetime-local" id="edit-datum-uhrzeit" required />
+          </div>
+          
+          <div class="form-group">
+            <label for="edit-energieverbrauch">Energieverbrauch (kWh):</label>
+            <input
+              type="number"
+              id="edit-energieverbrauch"
+              step="0.1"
+              min="0"
+              required
+            />
+          </div>
+          
+          <div class="form-group">
+            <label for="edit-erzeugte-waerme">Erzeugte Wärme (kWh):</label>
+            <input
+              type="number"
+              id="edit-erzeugte-waerme"
+              step="0.1"
+              min="0"
+              required
+            />
+          </div>
+          
+          <div class="form-group">
+            <label for="edit-aussentemperatur">Außentemperatur (°C):</label>
+            <input
+              type="number"
+              id="edit-aussentemperatur"
+              step="0.1"
+              required
+            />
+          </div>
+          
+          <div class="form-group">
+            <label for="edit-raumtemperatur">Raumtemperatur (°C):</label>
+            <input
+              type="number"
+              id="edit-raumtemperatur"
+              step="0.1"
+              min="0"
+              required
+            />
+          </div>
+          
+          <div class="form-group">
+            <label for="edit-vorlauftemperatur">Vorlauftemperatur (°C):</label>
+            <input
+              type="number"
+              id="edit-vorlauftemperatur"
+              step="0.1"
+              min="0"
+              required
+            />
+          </div>
+          
+          <div class="form-group">
+            <label for="edit-starts-waermepumpe">Starts Wärmepumpe:</label>
+            <input
+              type="number"
+              id="edit-starts-waermepumpe"
+              min="0"
+              required
+            />
+          </div>
+          
+          <div class="form-group">
+            <label for="edit-kw-zaehlerstand">kW Zählerstand:</label>
+            <input
+              type="number"
+              id="edit-kw-zaehlerstand"
+              step="0.1"
+              min="0"
+              required
+            />
+          </div>
+          
+          <div class="form-group">
+            <label for="edit-bemerkung">Bemerkung:</label>
+            <textarea
+              id="edit-bemerkung"
+              rows="2"
+            ></textarea>
+          </div>
+          
+          <div class="modal-buttons">
+            <button type="submit" class="btn-primary">Speichern</button>
+            <button type="button" id="edit-cancel" class="btn-secondary">
+              Abbrechen
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Backup Modal -->
+    <div id="backup-modal" class="modal">
+      <div class="modal-content modal-wide">
+        <h2>
+          💾 Daten verwalten
+          <span class="close" id="backup-modal-close">&times;</span>
+        </h2>
+
+        <div class="backup-content-wrapper">
+          <div class="backup-grid">
+            <!-- Export Section -->
+            <div class="backup-section">
+              <h3>📤 Daten exportieren</h3>
+              <button id="export-json" class="btn-primary backup-btn">
+                💾 Backup erstellen
+              </button>
+              <p class="backup-info-text">
+                Erstellt eine vollständige Sicherung aller Messwerte und
+                Einstellungen.
+              </p>
+            </div>
+
+            <!-- Import Section -->
+            <div class="backup-section">
+              <h3>📥 Daten importieren</h3>
+              <div class="import-controls">
+                <input
+                  type="file"
+                  id="import-file"
+                  accept=".json"
+                  style="display: none"
+                />
+                <button id="select-import-file" class="btn-primary backup-btn">
+                  📁 Backup wiederherstellen
+                </button>
+                <div id="import-file-info" class="file-info">
+                  Keine Datei ausgewählt
+                </div>
+                <div
+                  class="import-options"
+                  id="import-options"
+                  style="display: none"
+                >
+                  <h4>Import-Optionen:</h4>
+                  <label class="radio-option">
+                    <input
+                      type="radio"
+                      name="import-mode"
+                      value="replace"
+                      checked
+                    />
+                    <span>Alle Daten ersetzen</span>
+                  </label>
+                  <label class="radio-option">
+                    <input type="radio" name="import-mode" value="merge" />
+                    <span>Daten zusammenführen</span>
+                  </label>
+                  <label class="radio-option">
+                    <input type="radio" name="import-mode" value="add" />
+                    <span>Nur neue Messwerte hinzufügen</span>
+                  </label>
+                  <div class="import-buttons">
+                    <button id="confirm-import" class="btn-primary">
+                      ✅ Importieren
+                    </button>
+                    <button id="cancel-import" class="btn-secondary">
+                      ❌ Abbrechen
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Backup Info -->
+          <div class="backup-info-section">
+            <h3>💡 Backup-Tipp</h3>
+            <p>
+              Erstellen Sie regelmäßig ein Backup Ihrer Heizungsdaten. Die JSON-Datei
+              enthält alle Messwerte mit COP-Berechnungen und funktioniert mit
+              Hell-/Dunkelmodus.
+            </p>
+            <div class="last-backup" id="last-backup-info">
+              Noch kein Backup erstellt
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Message Container für Feedback -->
+    <div id="message-container"></div>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
