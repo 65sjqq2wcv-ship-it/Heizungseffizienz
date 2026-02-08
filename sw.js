@@ -1,7 +1,7 @@
 // Service Worker - Heizungseffizienz App
 // Keine externen Dependencies - alles inline
 
-const APP_VERSION = '1.0'; // ← Nur diese Zeile für Updates ändern
+const APP_VERSION = '1.2'; // ← Nur diese Zeile für Updates ändern
 const CACHE_NAME = `heizungseffizienz-v${APP_VERSION}`;
 const APP_NAME = 'Heizungseffizienz';
 
