@@ -1,5 +1,5 @@
 // Heizungseffizienz App - JavaScript
-// Version: 1.5
+// Version: 1.6
 
 class HeizungseffizienzApp {
   constructor() {
@@ -1446,7 +1446,7 @@ class HeizungseffizienzApp {
     const exportData = {
       measurements: this.measurements,
       exportDate: new Date().toISOString(),
-      appVersion: "1.5",
+      appVersion: "1.6",
       totalMeasurements: this.measurements.length,
     };
 
