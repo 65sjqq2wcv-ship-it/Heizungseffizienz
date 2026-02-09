@@ -1,6 +1,6 @@
 :root {
-  --primary-color: #dc2626;
-  --shadow-color: #7c1313;
+  --primary-color: #3182ce;
+  --shadow-color: #2c5282;
   --background-color: #f8fafc;
   --card-background: #ffffff;
   --text-color: #1e293b;
@@ -78,7 +78,7 @@ header {
 }
 
 .header-icon-btn {
-  background: linear-gradient(135deg, var(--primary-color) 0%, var(--shadow-color) 100%);
+  background: var(--background-color);
   border: 1px solid var(--border-color);
   width: 44px;
   height: 44px;
@@ -90,7 +90,7 @@ header {
 }
 
 .header-icon-btn:active {
-  background: linear-gradient(135deg, var(--primary-color) 0%, var(--shadow-color) 100%);
+  background: var(--background-color);
 }
 
 /* Dropdown Menu */
@@ -417,7 +417,7 @@ section h2 {
 }
 
 .btn-icon {
-  background: linear-gradient(135deg, var(--primary-color) 0%, var(--shadow-color) 100%);
+  background: var(--background-color);
   border: 1px solid var(--border-color);
   color: var(--text-secondary);
   width: 36px;
@@ -430,7 +430,7 @@ section h2 {
 }
 
 .btn-icon:active {
-  background: linear-gradient(135deg, var(--primary-color) 0%, var(--shadow-color) 100%);
+  background: var(--background-color);
 }
 
 .btn-icon.danger:active {
