@@ -1,5 +1,5 @@
 // Heizungseffizienz App - JavaScript
-// Version: 1.3
+// Version: 1.4
 
 class HeizungseffizienzApp {
   constructor() {
@@ -488,7 +488,7 @@ class HeizungseffizienzApp {
   renderCOPChart(ctx, measurements) {
     const labels = measurements.map((m) => {
       const date = new Date(m.datum);
-      return `$${date.getDate().toString().padStart(2, "0")}.$${(date.getMonth() + 1).toString().padStart(2, "0")}`;
+      return `${date.getDate().toString().padStart(2, "0")}.${(date.getMonth() + 1).toString().padStart(2, "0")}`;
     });
 
     const copData = measurements.map((m) => m.cop);
@@ -594,7 +594,7 @@ class HeizungseffizienzApp {
   renderTemperatureChart(ctx, measurements) {
     const labels = measurements.map((m) => {
       const date = new Date(m.datum);
-      return `$${date.getDate().toString().padStart(2, "0")}.$${(date.getMonth() + 1).toString().padStart(2, "0")}`;
+      return `${date.getDate().toString().padStart(2, "0")}.${(date.getMonth() + 1).toString().padStart(2, "0")}`;
     });
 
     this.currentChart = new Chart(ctx, {
@@ -710,7 +710,7 @@ class HeizungseffizienzApp {
   renderEnergyChart(ctx, measurements) {
     const labels = measurements.map((m) => {
       const date = new Date(m.datum);
-      return `$${date.getDate().toString().padStart(2, "0")}.$${(date.getMonth() + 1).toString().padStart(2, "0")}`;
+      return `${date.getDate().toString().padStart(2, "0")}.${(date.getMonth() + 1).toString().padStart(2, "0")}`;
     });
 
     this.currentChart = new Chart(ctx, {
@@ -810,7 +810,7 @@ class HeizungseffizienzApp {
   renderStartsChart(ctx, measurements) {
     const labels = measurements.map((m) => {
       const date = new Date(m.datum);
-      return `$${date.getDate().toString().padStart(2, "0")}.$${(date.getMonth() + 1).toString().padStart(2, "0")}`;
+      return `${date.getDate().toString().padStart(2, "0")}.${(date.getMonth() + 1).toString().padStart(2, "0")}`;
     });
 
     this.currentChart = new Chart(ctx, {
@@ -1446,7 +1446,7 @@ class HeizungseffizienzApp {
     const exportData = {
       measurements: this.measurements,
       exportDate: new Date().toISOString(),
-      appVersion: "1.3",
+      appVersion: "1.4",
       totalMeasurements: this.measurements.length,
     };
 

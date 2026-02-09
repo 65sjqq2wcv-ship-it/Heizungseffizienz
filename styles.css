@@ -1,5 +1,6 @@
 :root {
   --primary-color: #dc2626;
+  --shadow-color: #7c1313;
   --background-color: #f8fafc;
   --card-background: #ffffff;
   --text-color: #1e293b;
@@ -59,7 +60,7 @@ header {
   width: 36px;
   height: 36px;
   border-radius: var(--radius);
-  background: var(--primary-color);
+  background: var(--background-color);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -77,7 +78,7 @@ header {
 }
 
 .header-icon-btn {
-  background: var(--background-color);
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--shadow-color) 100%);
   border: 1px solid var(--border-color);
   width: 44px;
   height: 44px;
@@ -89,7 +90,7 @@ header {
 }
 
 .header-icon-btn:active {
-  background: var(--border-color);
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--shadow-color) 100%);
 }
 
 /* Dropdown Menu */
@@ -333,7 +334,7 @@ section h2 {
 
 /* Buttons */
 .btn-primary {
-  background: var(--primary-color);
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--shadow-color) 100%);
   color: white;
   border: none;
   padding: 0.875rem 1.25rem;
@@ -348,7 +349,7 @@ section h2 {
 }
 
 .btn-secondary {
-  background: var(--background-color);
+  background: linear-gradient(135deg, var(--background-color) 0%, var(--shadow-color) 100%);
   color: var(--text-color);
   border: 1px solid var(--border-color);
   padding: 0.875rem 1.25rem;
@@ -416,7 +417,7 @@ section h2 {
 }
 
 .btn-icon {
-  background: var(--background-color);
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--shadow-color) 100%);
   border: 1px solid var(--border-color);
   color: var(--text-secondary);
   width: 36px;
@@ -429,7 +430,7 @@ section h2 {
 }
 
 .btn-icon:active {
-  background: var(--border-color);
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--shadow-color) 100%);
 }
 
 .btn-icon.danger:active {

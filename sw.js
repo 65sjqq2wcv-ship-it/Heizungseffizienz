@@ -1,6 +1,6 @@
 // Service Worker - Heizungseffizienz App
 // Nur diese Zeile für Updates ändern:
-const APP_VERSION = '1.3'; // ← Hier Version erhöhen zum Testen
+const APP_VERSION = '1.4'; // ← Hier Version erhöhen zum Testen
 const CACHE_NAME = `heizungseffizienz-v${APP_VERSION}`;
 const APP_NAME = 'Heizungseffizienz';
 
