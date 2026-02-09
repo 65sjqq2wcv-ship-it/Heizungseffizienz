@@ -1,5 +1,5 @@
 // Heizungseffizienz App - JavaScript
-// Version: 1.2
+// Version: 1.3
 
 class HeizungseffizienzApp {
   constructor() {
@@ -7,6 +7,7 @@ class HeizungseffizienzApp {
     this.editingId = null;
     this.currentYear = new Date().getFullYear();
     this.currentMonth = 0; // 0 = alle Monate
+    this.currentChart = null;
 
     this.init();
   }
@@ -17,30 +18,62 @@ class HeizungseffizienzApp {
     this.updateOverview();
     this.renderMeasurements();
     this.setCurrentDateTime();
+    this.initChart();
     this.registerServiceWorker();
   }
 
-  // Service Worker Registration
+  // Service Worker Registration - Ersetze die bestehende Funktion:
   async registerServiceWorker() {
     if ("serviceWorker" in navigator) {
       try {
         const registration = await navigator.serviceWorker.register("./sw.js");
-        console.log("Service Worker registered successfully:", registration);
+        console.log("✅ Service Worker registered:", registration);
 
-        // Update handling
+        // Sofortige Update-Erkennung
         registration.addEventListener("updatefound", () => {
           const newWorker = registration.installing;
+          console.log("🔄 Neuer Service Worker gefunden");
+
           newWorker.addEventListener("statechange", () => {
-            if (
-              newWorker.state === "installed" &&
-              navigator.serviceWorker.controller
-            ) {
-              this.showUpdateBanner();
+            console.log("📱 SW State:", newWorker.state);
+
+            if (newWorker.state === "installed") {
+              if (navigator.serviceWorker.controller) {
+                // Update verfügbar
+                console.log("🆕 Update verfügbar!");
+                this.showUpdateBanner();
+              } else {
+                // Erste Installation
+                console.log("🎉 App erfolgreich installiert");
+                this.showMessage("App erfolgreich installiert!", "success");
+              }
             }
           });
         });
+
+        // Prüfe auf bereits wartenden Service Worker
+        if (registration.waiting) {
+          console.log("⏳ Service Worker wartet bereits");
+          this.showUpdateBanner();
+        }
+
+        // Nachrichten vom Service Worker empfangen
+        navigator.serviceWorker.addEventListener('message', event => {
+          if (event.data && event.data.type === 'SW_UPDATED') {
+            console.log("📢 SW Update-Nachricht erhalten:", event.data.version);
+            this.showUpdateBanner();
+          }
+        });
+
+        // Periodische Update-Prüfung alle 30 Sekunden
+        setInterval(() => {
+          registration.update().catch(err => {
+            console.log("Update-Check fehlgeschlagen:", err);
+          });
+        }, 30000);
+
       } catch (error) {
-        console.error("Service Worker registration failed:", error);
+        console.error("❌ Service Worker registration failed:", error);
       }
     }
   }
@@ -127,11 +160,50 @@ class HeizungseffizienzApp {
       this.closeEditModal();
     });
 
-    // Backup Modal
-    document.getElementById("backup-icon").addEventListener("click", () => {
+    // Dropdown Menu
+    document.getElementById("menu-toggle").addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.toggleDropdownMenu();
+    });
+
+    // Menu Chart Buttons
+    document.getElementById("menu-chart-cop").addEventListener("click", () => {
+      this.setActiveMenuChartButton("menu-chart-cop");
+      this.renderChart("cop");
+      this.closeDropdownMenu();
+    });
+
+    document.getElementById("menu-chart-temp").addEventListener("click", () => {
+      this.setActiveMenuChartButton("menu-chart-temp");
+      this.renderChart("temperature");
+      this.closeDropdownMenu();
+    });
+
+    document.getElementById("menu-chart-energy").addEventListener("click", () => {
+      this.setActiveMenuChartButton("menu-chart-energy");
+      this.renderChart("energy");
+      this.closeDropdownMenu();
+    });
+
+    document.getElementById("menu-chart-starts").addEventListener("click", () => {
+      this.setActiveMenuChartButton("menu-chart-starts");
+      this.renderChart("starts");
+      this.closeDropdownMenu();
+    });
+
+    document.getElementById("menu-chart-kwh").addEventListener("click", () => {
+      this.setActiveMenuChartButton("menu-chart-kwh");
+      this.renderChart("kwh");
+      this.closeDropdownMenu();
+    });
+
+    // Menu Backup Button
+    document.getElementById("menu-backup").addEventListener("click", () => {
+      this.closeDropdownMenu();
       this.openBackupModal();
     });
 
+    // Backup Modal
     document
       .getElementById("backup-modal-close")
       .addEventListener("click", () => {
@@ -142,9 +214,11 @@ class HeizungseffizienzApp {
     this.setupBackupHandlers();
 
     // Modal schließen bei Klick außerhalb
-    window.addEventListener("click", (e) => {
+    document.addEventListener("click", (e) => {
       const editModal = document.getElementById("edit-modal");
       const backupModal = document.getElementById("backup-modal");
+      const dropdownMenu = document.getElementById("dropdown-menu");
+      const menuToggle = document.getElementById("menu-toggle");
 
       if (e.target === editModal) {
         this.closeEditModal();
@@ -152,6 +226,697 @@ class HeizungseffizienzApp {
       if (e.target === backupModal) {
         this.closeBackupModal();
       }
+
+      // Dropdown schließen wenn außerhalb geklickt
+      if (!dropdownMenu.contains(e.target) && !menuToggle.contains(e.target)) {
+        this.closeDropdownMenu();
+      }
+    });
+  }
+
+  // Menu Modal Funktionen
+  openMenuModal() {
+    document.getElementById("menu-modal").style.display = "block";
+  }
+
+  closeMenuModal() {
+    document.getElementById("menu-modal").style.display = "none";
+  }
+
+  // Dropdown Menu Funktionen - Ersetze Menu Modal Funktionen durch:
+  toggleDropdownMenu() {
+    const dropdown = document.getElementById("dropdown-menu");
+    dropdown.classList.toggle("show");
+  }
+
+  closeDropdownMenu() {
+    document.getElementById("dropdown-menu").classList.remove("show");
+  }
+
+  setActiveMenuChartButton(activeId) {
+    document.querySelectorAll(".menu-item").forEach((btn) => {
+      btn.classList.remove("active");
+    });
+    document.getElementById(activeId).classList.add("active");
+  }
+
+  // Chart initialisieren
+  initChart() {
+    this.renderChart('cop');
+  }
+
+  // Chart ohne Daten
+  showNoDataChart() {
+    const container = document.getElementById("chart-container");
+    container.innerHTML = `
+      <div class="empty-state" style="height: 100%; display: flex; align-items: center; justify-content: center; flex-direction: column;">
+        <h3>Keine Daten verfügbar</h3>
+        <p>Erfassen Sie Messwerte, um Diagramme zu sehen</p>
+      </div>
+    `;
+  }
+
+  // Chart rendern
+  renderChart(type) {
+    const filteredMeasurements = this.getFilteredMeasurements();
+
+    if (filteredMeasurements.length === 0) {
+      this.showNoDataChart();
+      return;
+    }
+
+    // Sortiere nach Datum
+    filteredMeasurements.sort((a, b) => new Date(a.datum) - new Date(b.datum));
+
+    // Zerstöre existierenden Chart
+    if (this.currentChart) {
+      this.currentChart.destroy();
+    }
+
+    const ctx = document.getElementById("efficiency-chart").getContext("2d");
+
+    switch (type) {
+      case "cop":
+        this.renderCOPChart(ctx, filteredMeasurements);
+        break;
+      case "temperature":
+        this.renderTemperatureChart(ctx, filteredMeasurements);
+        break;
+      case "energy":
+        this.renderEnergyChart(ctx, filteredMeasurements);
+        break;
+      case "starts":
+        this.renderStartsChart(ctx, filteredMeasurements);
+        break;
+      case "kwh":
+        this.renderKWhChart(ctx, filteredMeasurements);
+        break;
+    }
+  }
+
+  // Neue Chart-Funktion für kW Zählerstand:
+  renderKWhChart(ctx, measurements) {
+    const labels = measurements.map((m) => {
+      const date = new Date(m.datum);
+      return `${date.getDate().toString().padStart(2, "0")}.${(date.getMonth() + 1).toString().padStart(2, "0")}`;
+    });
+
+    // Berechne Verbrauch zwischen Messungen
+    const consumption = [];
+    for (let i = 1; i < measurements.length; i++) {
+      const diff = measurements[i].kwZaehlerstand - measurements[i - 1].kwZaehlerstand;
+      consumption.push(diff > 0 ? diff : 0);
+    }
+    consumption.unshift(0); // Erste Messung hat keinen Verbrauch
+
+    this.currentChart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: "kW Zählerstand",
+            data: measurements.map((m) => m.kwZaehlerstand),
+            borderColor: "rgb(139, 69, 19)",
+            backgroundColor: "rgba(139, 69, 19, 0.1)",
+            borderWidth: 3,
+            fill: false,
+            tension: 0.4,
+            pointBackgroundColor: "rgb(139, 69, 19)",
+            pointBorderColor: "#ffffff",
+            pointBorderWidth: 2,
+            pointRadius: 6,
+            pointHoverRadius: 8,
+            yAxisID: 'y'
+          },
+          {
+            label: "Verbrauch seit letzter Messung (kWh)",
+            data: consumption,
+            type: 'bar',
+            backgroundColor: "rgba(255, 99, 132, 0.7)",
+            borderColor: "rgb(255, 99, 132)",
+            borderWidth: 1,
+            yAxisID: 'y1'
+          },
+          {
+            label: "Wärmepumpen-Verbrauch (kWh)",
+            data: measurements.map((m) => m.energieverbrauch),
+            borderColor: "rgb(75, 192, 192)",
+            backgroundColor: "rgba(75, 192, 192, 0.1)",
+            borderWidth: 2,
+            fill: false,
+            tension: 0.4,
+            borderDash: [5, 5],
+            yAxisID: 'y1'
+          }
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+          mode: 'index',
+          intersect: false,
+        },
+        plugins: {
+          title: {
+            display: true,
+            text: "kW Zählerstand und Verbrauch",
+            font: {
+              size: 16,
+              weight: "bold",
+            },
+            color: getComputedStyle(document.documentElement).getPropertyValue(
+              "--text-color",
+            ),
+          },
+          legend: {
+            display: true,
+            labels: {
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--text-color"),
+              usePointStyle: true,
+            },
+          },
+          tooltip: {
+            callbacks: {
+              afterLabel: function (context) {
+                if (context.datasetIndex === 0) {
+                  const measurement = measurements[context.dataIndex];
+                  return [
+                    `Differenz zu WP: ${measurement.differenzKwWp || 0} kWh`,
+                    `WP-Verbrauch: ${measurement.energieverbrauch} kWh`
+                  ];
+                }
+                return null;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            title: {
+              display: true,
+              text: "Datum",
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--text-color"),
+            },
+            ticks: {
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--text-secondary"),
+            },
+            grid: {
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--border-color"),
+            },
+          },
+          y: {
+            type: 'linear',
+            display: true,
+            position: 'left',
+            title: {
+              display: true,
+              text: "Zählerstand (kWh)",
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--text-color"),
+            },
+            ticks: {
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--text-secondary"),
+            },
+            grid: {
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--border-color"),
+            },
+          },
+          y1: {
+            type: 'linear',
+            display: true,
+            position: 'right',
+            title: {
+              display: true,
+              text: "Verbrauch (kWh)",
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--text-color"),
+            },
+            ticks: {
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--text-secondary"),
+            },
+            grid: {
+              drawOnChartArea: false,
+            },
+          },
+        },
+        animation: {
+          duration: 1000,
+          easing: "easeInOutQuart",
+        },
+      },
+    });
+  }
+
+  renderCOPChart(ctx, measurements) {
+    const labels = measurements.map((m) => {
+      const date = new Date(m.datum);
+      return `$${date.getDate().toString().padStart(2, "0")}.$${(date.getMonth() + 1).toString().padStart(2, "0")}`;
+    });
+
+    const copData = measurements.map((m) => m.cop);
+
+    this.currentChart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: "COP (Coefficient of Performance)",
+            data: copData,
+            borderColor: "rgb(220, 38, 38)",
+            backgroundColor: "rgba(220, 38, 38, 0.1)",
+            borderWidth: 3,
+            fill: true,
+            tension: 0.4,
+            pointBackgroundColor: "rgb(220, 38, 38)",
+            pointBorderColor: "#ffffff",
+            pointBorderWidth: 2,
+            pointRadius: 6,
+            pointHoverRadius: 8,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          title: {
+            display: true,
+            text: "COP Verlauf über Zeit",
+            font: {
+              size: 16,
+              weight: "bold",
+            },
+            color: getComputedStyle(document.documentElement).getPropertyValue(
+              "--text-color",
+            ),
+          },
+          legend: {
+            display: true,
+            labels: {
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--text-color"),
+            },
+          },
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            title: {
+              display: true,
+              text: "COP Wert",
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--text-color"),
+            },
+            ticks: {
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--text-secondary"),
+            },
+            grid: {
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--border-color"),
+            },
+          },
+          x: {
+            title: {
+              display: true,
+              text: "Datum",
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--text-color"),
+            },
+            ticks: {
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--text-secondary"),
+            },
+            grid: {
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--border-color"),
+            },
+          },
+        },
+        interaction: {
+          intersect: false,
+          mode: "index",
+        },
+        animation: {
+          duration: 1000,
+          easing: "easeInOutQuart",
+        },
+      },
+    });
+  }
+
+  renderTemperatureChart(ctx, measurements) {
+    const labels = measurements.map((m) => {
+      const date = new Date(m.datum);
+      return `$${date.getDate().toString().padStart(2, "0")}.$${(date.getMonth() + 1).toString().padStart(2, "0")}`;
+    });
+
+    this.currentChart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: "Außentemperatur (°C)",
+            data: measurements.map((m) => m.aussentemperatur),
+            borderColor: "rgb(59, 130, 246)",
+            backgroundColor: "rgba(59, 130, 246, 0.1)",
+            borderWidth: 2,
+            fill: false,
+            tension: 0.4,
+          },
+          {
+            label: "Raumtemperatur (°C)",
+            data: measurements.map((m) => m.raumtemperatur),
+            borderColor: "rgb(16, 185, 129)",
+            backgroundColor: "rgba(16, 185, 129, 0.1)",
+            borderWidth: 2,
+            fill: false,
+            tension: 0.4,
+          },
+          {
+            label: "Vorlauftemperatur (°C)",
+            data: measurements.map((m) => m.vorlauftemperatur),
+            borderColor: "rgb(245, 158, 11)",
+            backgroundColor: "rgba(245, 158, 11, 0.1)",
+            borderWidth: 2,
+            fill: false,
+            tension: 0.4,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          title: {
+            display: true,
+            text: "Temperaturverlauf",
+            font: {
+              size: 16,
+              weight: "bold",
+            },
+            color: getComputedStyle(document.documentElement).getPropertyValue(
+              "--text-color",
+            ),
+          },
+          legend: {
+            display: true,
+            labels: {
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--text-color"),
+            },
+          },
+        },
+        scales: {
+          y: {
+            title: {
+              display: true,
+              text: "Temperatur (°C)",
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--text-color"),
+            },
+            ticks: {
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--text-secondary"),
+            },
+            grid: {
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--border-color"),
+            },
+          },
+          x: {
+            title: {
+              display: true,
+              text: "Datum",
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--text-color"),
+            },
+            ticks: {
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--text-secondary"),
+            },
+            grid: {
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--border-color"),
+            },
+          },
+        },
+        interaction: {
+          intersect: false,
+          mode: "index",
+        },
+        animation: {
+          duration: 1000,
+          easing: "easeInOutQuart",
+        },
+      },
+    });
+  }
+
+  renderEnergyChart(ctx, measurements) {
+    const labels = measurements.map((m) => {
+      const date = new Date(m.datum);
+      return `$${date.getDate().toString().padStart(2, "0")}.$${(date.getMonth() + 1).toString().padStart(2, "0")}`;
+    });
+
+    this.currentChart = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: "Energieverbrauch (kWh)",
+            data: measurements.map((m) => m.energieverbrauch),
+            backgroundColor: "rgba(220, 38, 38, 0.7)",
+            borderColor: "rgb(220, 38, 38)",
+            borderWidth: 1,
+          },
+          {
+            label: "Erzeugte Wärme (kWh)",
+            data: measurements.map((m) => m.erzeugteWaerme),
+            backgroundColor: "rgba(16, 185, 129, 0.7)",
+            borderColor: "rgb(16, 185, 129)",
+            borderWidth: 1,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          title: {
+            display: true,
+            text: "Energieverbrauch vs. Erzeugte Wärme",
+            font: {
+              size: 16,
+              weight: "bold",
+            },
+            color: getComputedStyle(document.documentElement).getPropertyValue(
+              "--text-color",
+            ),
+          },
+          legend: {
+            display: true,
+            labels: {
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--text-color"),
+            },
+          },
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            title: {
+              display: true,
+              text: "Energie (kWh)",
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--text-color"),
+            },
+            ticks: {
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--text-secondary"),
+            },
+            grid: {
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--border-color"),
+            },
+          },
+          x: {
+            title: {
+              display: true,
+              text: "Datum",
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--text-color"),
+            },
+            ticks: {
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--text-secondary"),
+            },
+            grid: {
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--border-color"),
+            },
+          },
+        },
+        animation: {
+          duration: 1000,
+          easing: "easeInOutQuart",
+        },
+      },
+    });
+  }
+
+  renderStartsChart(ctx, measurements) {
+    const labels = measurements.map((m) => {
+      const date = new Date(m.datum);
+      return `$${date.getDate().toString().padStart(2, "0")}.$${(date.getMonth() + 1).toString().padStart(2, "0")}`;
+    });
+
+    this.currentChart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: "Wärmepumpe Starts",
+            data: measurements.map((m) => m.startsWaermepumpe),
+            borderColor: "rgb(147, 51, 234)",
+            backgroundColor: "rgba(147, 51, 234, 0.1)",
+            borderWidth: 3,
+            fill: true,
+            tension: 0.4,
+            pointBackgroundColor: "rgb(147, 51, 234)",
+            pointBorderColor: "#ffffff",
+            pointBorderWidth: 2,
+            pointRadius: 6,
+          },
+          {
+            label: "Δ Starts zum Vortag",
+            data: measurements.map((m) => m.deltaStartsVortag || 0),
+            borderColor: "rgb(245, 158, 11)",
+            backgroundColor: "rgba(245, 158, 11, 0.1)",
+            borderWidth: 2,
+            fill: false,
+            tension: 0.4,
+            borderDash: [5, 5],
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          title: {
+            display: true,
+            text: "Wärmepumpe Starts und Veränderungen",
+            font: {
+              size: 16,
+              weight: "bold",
+            },
+            color: getComputedStyle(document.documentElement).getPropertyValue(
+              "--text-color",
+            ),
+          },
+          legend: {
+            display: true,
+            labels: {
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--text-color"),
+            },
+          },
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            title: {
+              display: true,
+              text: "Anzahl Starts",
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--text-color"),
+            },
+            ticks: {
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--text-secondary"),
+            },
+            grid: {
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--border-color"),
+            },
+          },
+          x: {
+            title: {
+              display: true,
+              text: "Datum",
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--text-color"),
+            },
+            ticks: {
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--text-secondary"),
+            },
+            grid: {
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--border-color"),
+            },
+          },
+        },
+        interaction: {
+          intersect: false,
+          mode: "index",
+        },
+        animation: {
+          duration: 1000,
+          easing: "easeInOutQuart",
+        },
+      },
     });
   }
 
@@ -185,33 +950,33 @@ class HeizungseffizienzApp {
       startsWaermepumpe: parseInt(formData.startsWaermepumpe),
       kwZaehlerstand: parseFloat(formData.kwZaehlerstand),
       bemerkung: formData.bemerkung || "",
-      erstelltAm: this.editingId
-        ? this.measurements.find((m) => m.id === this.editingId)?.erstelltAm ||
-          new Date().toISOString()
-        : new Date().toISOString(),
     };
 
-    // Berechnete Felder hinzufügen
+    // Berechnete Felder
     measurement.cop = this.calculateCOP(
       measurement.erzeugteWaerme,
       measurement.energieverbrauch,
     );
     measurement.deltaInnenAussen =
       measurement.raumtemperatur - measurement.aussentemperatur;
-    measurement.deltaVerbrauchVortag =
-      this.calculateDeltaVerbrauch(measurement);
+    measurement.deltaVerbrauchVortag = this.calculateDeltaVerbrauch(measurement);
     measurement.deltaStartsVortag = this.calculateDeltaStarts(measurement);
     measurement.differenzKwWp = this.calculateDifferenzKwWp(measurement);
 
     if (this.editingId) {
+      // Bearbeiten
       const index = this.measurements.findIndex((m) => m.id === this.editingId);
       if (index !== -1) {
         this.measurements[index] = measurement;
-        this.showMessage("Messwert erfolgreich aktualisiert!", "success");
+        this.showMessage("Messwert aktualisiert!", "success");
+        document.querySelector(".add-measurement-section h2").textContent =
+          "📝 Messwerte erfassen";
+        document.getElementById("measurement-cancel").style.display = "none";
       }
     } else {
+      // Neu hinzufügen
       this.measurements.push(measurement);
-      this.showMessage("Messwert erfolgreich gespeichert!", "success");
+      this.showMessage("Messwert gespeichert!", "success");
     }
 
     // Neu berechnen für alle Messungen (für Delta-Werte)
@@ -243,7 +1008,7 @@ class HeizungseffizienzApp {
       Math.round(
         (currentMeasurement.energieverbrauch -
           previousMeasurement.energieverbrauch) *
-          10,
+        10,
       ) / 10
     );
   }
@@ -371,7 +1136,7 @@ class HeizungseffizienzApp {
     this.clearForm();
   }
 
-  // Übersicht aktualisieren
+  // In updateOverview() nach den bestehenden Berechnungen hinzufügen:
   updateOverview() {
     const filteredMeasurements = this.getFilteredMeasurements();
 
@@ -391,8 +1156,12 @@ class HeizungseffizienzApp {
       document.getElementById("avg-starts").textContent = "0";
       document.getElementById("efficiency-text").textContent = "Keine Daten";
       document.getElementById("efficiency-status").className = "overview-card";
+      this.showNoDataChart();
       return;
     }
+
+    // Sortiere für kW-Berechnung
+    const sortedMeasurements = [...filteredMeasurements].sort((a, b) => new Date(a.datum) - new Date(b.datum));
 
     // Durchschnittlicher COP
     const avgCOP =
@@ -400,13 +1169,22 @@ class HeizungseffizienzApp {
       filteredMeasurements.length;
     document.getElementById("avg-cop").textContent = avgCOP.toFixed(1);
 
-    // Gesamtenergie
-    const totalEnergy = filteredMeasurements.reduce(
+    // Gesamtenergie aus kW Zählerstand (wenn mehr als eine Messung)
+    let totalEnergyFromMeter = 0;
+    if (sortedMeasurements.length > 1) {
+      const firstReading = sortedMeasurements[0].kwZaehlerstand;
+      const lastReading = sortedMeasurements[sortedMeasurements.length - 1].kwZaehlerstand;
+      totalEnergyFromMeter = lastReading - firstReading;
+    }
+
+    // Zeige beide Werte an
+    const totalEnergyWP = filteredMeasurements.reduce(
       (sum, m) => sum + m.energieverbrauch,
       0,
     );
+
     document.getElementById("total-energy").textContent =
-      `${totalEnergy.toFixed(1)} kWh`;
+      `${totalEnergyWP.toFixed(1)} kWh (WP)`;
 
     // Durchschnittliche Starts pro Tag
     const totalStarts = filteredMeasurements.reduce(
@@ -417,75 +1195,45 @@ class HeizungseffizienzApp {
     document.getElementById("avg-starts").textContent = avgStarts.toString();
 
     // Effizienz Status
-    this.updateEfficiencyStatus(avgCOP);
-  }
+    const efficiencyElement = document.getElementById("efficiency-status");
+    const efficiencyTextElement = document.getElementById("efficiency-text");
 
-  // Effizienz Status aktualisieren
-  updateEfficiencyStatus(avgCOP) {
-    const statusCard = document.getElementById("efficiency-status");
-    const statusText = document.getElementById("efficiency-text");
-
-    // Effizienz bewerten
-    if (avgCOP >= 4.0) {
-      statusCard.className = "overview-card efficiency-good";
-      statusText.textContent = "Sehr gut";
-    } else if (avgCOP >= 3.0) {
-      statusCard.className = "overview-card efficiency-medium";
-      statusText.textContent = "Gut";
-    } else if (avgCOP >= 2.0) {
-      statusCard.className = "overview-card efficiency-medium";
-      statusText.textContent = "Befriedigend";
-    } else if (avgCOP > 0) {
-      statusCard.className = "overview-card efficiency-poor";
-      statusText.textContent = "Verbesserungsbedarf";
+    if (avgCOP >= 4.5) {
+      efficiencyElement.className = "overview-card efficiency-good";
+      efficiencyTextElement.textContent = "Sehr gut";
+    } else if (avgCOP >= 3.5) {
+      efficiencyElement.className = "overview-card efficiency-medium";
+      efficiencyTextElement.textContent = "Gut";
+    } else if (avgCOP >= 2.5) {
+      efficiencyElement.className = "overview-card efficiency-medium";
+      efficiencyTextElement.textContent = "Mittelmäßig";
     } else {
-      statusCard.className = "overview-card";
-      statusText.textContent = "Keine Daten";
+      efficiencyElement.className = "overview-card efficiency-poor";
+      efficiencyTextElement.textContent = "Verbesserungsbedarf";
     }
+
+    // Chart aktualisieren
+    this.renderChart("cop");
   }
 
-  // Gefilterte Messungen abrufen (Debug-Version)
+  // Gefilterte Messungen abrufen
   getFilteredMeasurements() {
-    console.log("Filtering measurements:", {
-      total: this.measurements.length,
-      currentYear: this.currentYear,
-      currentMonth: this.currentMonth,
-    });
+    return this.measurements.filter((measurement) => {
+      const date = new Date(measurement.datum);
+      const year = date.getFullYear();
+      const month = date.getMonth() + 1;
 
-    const filtered = this.measurements.filter((measurement) => {
-      const measurementDate = new Date(measurement.datum);
-      const measurementYear = measurementDate.getFullYear();
-      const measurementMonth = measurementDate.getMonth() + 1;
-
-      console.log("Checking measurement:", {
-        datum: measurement.datum,
-        measurementYear,
-        measurementMonth,
-        currentYear: this.currentYear,
-        currentMonth: this.currentMonth,
-      });
-
-      if (measurementYear !== this.currentYear) {
-        return false;
-      }
-
-      if (this.currentMonth !== 0 && measurementMonth !== this.currentMonth) {
-        return false;
-      }
+      if (year !== this.currentYear) return false;
+      if (this.currentMonth !== 0 && month !== this.currentMonth) return false;
 
       return true;
     });
-
-    console.log("Filtered measurements:", filtered.length);
-    return filtered;
   }
 
-  // Messungen rendern (verbesserte Version)
+  // Messwerte rendern
   renderMeasurements() {
     const container = document.getElementById("measurements-list");
     const filteredMeasurements = this.getFilteredMeasurements();
-
-    console.log("Rendering measurements:", filteredMeasurements.length); // Debug-Log
 
     if (filteredMeasurements.length === 0) {
       container.innerHTML = `
@@ -655,10 +1403,15 @@ class HeizungseffizienzApp {
   // Backup Modal schließen
   closeBackupModal() {
     document.getElementById("backup-modal").style.display = "none";
+
+    // Import-Zustand komplett zurücksetzen
     document.getElementById("import-options").style.display = "none";
-    document.getElementById("import-file-info").textContent =
-      "Keine Datei ausgewählt";
+    document.getElementById("import-file-info").textContent = "Keine Datei ausgewählt";
     document.getElementById("import-file-info").className = "file-info";
+    document.getElementById("import-file").value = "";
+
+    // Pending import data zurücksetzen
+    this.pendingImportData = null;
   }
 
   // Backup Handlers
@@ -693,7 +1446,7 @@ class HeizungseffizienzApp {
     const exportData = {
       measurements: this.measurements,
       exportDate: new Date().toISOString(),
-      appVersion: "1.2",
+      appVersion: "1.3",
       totalMeasurements: this.measurements.length,
     };
 
@@ -802,12 +1555,24 @@ class HeizungseffizienzApp {
     // Delta-Werte neu berechnen
     this.recalculateAllDeltas();
 
+    // Daten speichern
     this.saveData();
-    this.updateOverview();
-    this.renderMeasurements();
-    this.closeBackupModal();
 
+    // Modal schließen ZUERST
+    this.closeBackupModal();
     this.pendingImportData = null;
+
+    // UI Updates danach
+    setTimeout(() => {
+      this.updateOverview();
+      this.renderMeasurements();
+      // Chart auch aktualisieren
+      if (this.getFilteredMeasurements().length > 0) {
+        this.renderChart('cop');
+        // Setze COP als aktiv im Menü
+        this.setActiveMenuChartButton('menu-chart-cop');
+      }
+    }, 100);
   }
 
   // Import abbrechen
@@ -820,7 +1585,7 @@ class HeizungseffizienzApp {
     document.getElementById("import-file").value = "";
   }
 
-  // Last Backup Info aktualisieren (Fortsetzung der vorherigen Funktion)
+  // Last Backup Info aktualisieren
   updateLastBackupInfo() {
     const lastBackup = localStorage.getItem("heizungseffizienz-last-backup");
     const infoElement = document.getElementById("last-backup-info");
@@ -831,539 +1596,6 @@ class HeizungseffizienzApp {
     } else {
       infoElement.textContent = "Noch kein Backup erstellt";
     }
-  }
-
-  // Chart-Funktionalität (verbesserte Version mit Icons)
-initChart() {
-    const container = document.getElementById('chart-container');
-    container.innerHTML = `
-        <div class="chart-controls">
-            <button id="chart-cop" class="chart-btn active"> COP Verlauf</button>
-            <button id="chart-temp" class="chart-btn"> Temperaturen</button>
-            <button id="chart-energy" class="chart-btn"> Energie</button>
-            <button id="chart-starts" class="chart-btn"> Starts</button>
-        </div>
-        <canvas id="efficiency-chart" width="400" height="200"></canvas>
-    `;
-
-    this.setupChartControls();
-    this.renderChart('cop');
-}
-
-
-  setupChartControls() {
-    document.getElementById("chart-cop").addEventListener("click", () => {
-      this.setActiveChartButton("chart-cop");
-      this.renderChart("cop");
-    });
-
-    document.getElementById("chart-temp").addEventListener("click", () => {
-      this.setActiveChartButton("chart-temp");
-      this.renderChart("temperature");
-    });
-
-    document.getElementById("chart-energy").addEventListener("click", () => {
-      this.setActiveChartButton("chart-energy");
-      this.renderChart("energy");
-    });
-
-    document.getElementById("chart-starts").addEventListener("click", () => {
-      this.setActiveChartButton("chart-starts");
-      this.renderChart("starts");
-    });
-  }
-
-  setActiveChartButton(activeId) {
-    document.querySelectorAll(".chart-btn").forEach((btn) => {
-      btn.classList.remove("active");
-    });
-    document.getElementById(activeId).classList.add("active");
-  }
-
-  renderChart(type) {
-    const filteredMeasurements = this.getFilteredMeasurements();
-
-    if (filteredMeasurements.length === 0) {
-      this.showNoDataChart();
-      return;
-    }
-
-    // Sortiere nach Datum
-    filteredMeasurements.sort((a, b) => new Date(a.datum) - new Date(b.datum));
-
-    // Zerstöre existierenden Chart
-    if (this.currentChart) {
-      this.currentChart.destroy();
-    }
-
-    const ctx = document.getElementById("efficiency-chart").getContext("2d");
-
-    switch (type) {
-      case "cop":
-        this.renderCOPChart(ctx, filteredMeasurements);
-        break;
-      case "temperature":
-        this.renderTemperatureChart(ctx, filteredMeasurements);
-        break;
-      case "energy":
-        this.renderEnergyChart(ctx, filteredMeasurements);
-        break;
-      case "starts":
-        this.renderStartsChart(ctx, filteredMeasurements);
-        break;
-    }
-  }
-
-  renderCOPChart(ctx, measurements) {
-    const labels = measurements.map((m) => {
-      const date = new Date(m.datum);
-      return `${date.getDate().toString().padStart(2, "0")}.${(date.getMonth() + 1).toString().padStart(2, "0")}`;
-    });
-
-    const copData = measurements.map((m) => m.cop);
-
-    this.currentChart = new Chart(ctx, {
-      type: "line",
-      data: {
-        labels: labels,
-        datasets: [
-          {
-            label: "COP (Coefficient of Performance)",
-            data: copData,
-            borderColor: "rgb(220, 38, 38)",
-            backgroundColor: "rgba(220, 38, 38, 0.1)",
-            borderWidth: 3,
-            fill: true,
-            tension: 0.4,
-            pointBackgroundColor: "rgb(220, 38, 38)",
-            pointBorderColor: "#ffffff",
-            pointBorderWidth: 2,
-            pointRadius: 6,
-            pointHoverRadius: 8,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          title: {
-            display: true,
-            text: "COP Verlauf über Zeit",
-            font: {
-              size: 16,
-              weight: "bold",
-            },
-            color: getComputedStyle(document.documentElement).getPropertyValue(
-              "--text-color",
-            ),
-          },
-          legend: {
-            display: true,
-            labels: {
-              color: getComputedStyle(
-                document.documentElement,
-              ).getPropertyValue("--text-color"),
-            },
-          },
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            title: {
-              display: true,
-              text: "COP Wert",
-              color: getComputedStyle(
-                document.documentElement,
-              ).getPropertyValue("--text-color"),
-            },
-            ticks: {
-              color: getComputedStyle(
-                document.documentElement,
-              ).getPropertyValue("--text-secondary"),
-            },
-            grid: {
-              color: getComputedStyle(
-                document.documentElement,
-              ).getPropertyValue("--border-color"),
-            },
-          },
-          x: {
-            title: {
-              display: true,
-              text: "Datum",
-              color: getComputedStyle(
-                document.documentElement,
-              ).getPropertyValue("--text-color"),
-            },
-            ticks: {
-              color: getComputedStyle(
-                document.documentElement,
-              ).getPropertyValue("--text-secondary"),
-            },
-            grid: {
-              color: getComputedStyle(
-                document.documentElement,
-              ).getPropertyValue("--border-color"),
-            },
-          },
-        },
-        interaction: {
-          intersect: false,
-          mode: "index",
-        },
-        animation: {
-          duration: 1000,
-          easing: "easeInOutQuart",
-        },
-      },
-    });
-  }
-
-  renderTemperatureChart(ctx, measurements) {
-    const labels = measurements.map((m) => {
-      const date = new Date(m.datum);
-      return `${date.getDate().toString().padStart(2, "0")}.${(date.getMonth() + 1).toString().padStart(2, "0")}`;
-    });
-
-    this.currentChart = new Chart(ctx, {
-      type: "line",
-      data: {
-        labels: labels,
-        datasets: [
-          {
-            label: "Außentemperatur (°C)",
-            data: measurements.map((m) => m.aussentemperatur),
-            borderColor: "rgb(59, 130, 246)",
-            backgroundColor: "rgba(59, 130, 246, 0.1)",
-            borderWidth: 2,
-            fill: false,
-            tension: 0.4,
-          },
-          {
-            label: "Raumtemperatur (°C)",
-            data: measurements.map((m) => m.raumtemperatur),
-            borderColor: "rgb(16, 185, 129)",
-            backgroundColor: "rgba(16, 185, 129, 0.1)",
-            borderWidth: 2,
-            fill: false,
-            tension: 0.4,
-          },
-          {
-            label: "Vorlauftemperatur (°C)",
-            data: measurements.map((m) => m.vorlauftemperatur),
-            borderColor: "rgb(245, 158, 11)",
-            backgroundColor: "rgba(245, 158, 11, 0.1)",
-            borderWidth: 2,
-            fill: false,
-            tension: 0.4,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          title: {
-            display: true,
-            text: "Temperaturverlauf",
-            font: {
-              size: 16,
-              weight: "bold",
-            },
-            color: getComputedStyle(document.documentElement).getPropertyValue(
-              "--text-color",
-            ),
-          },
-          legend: {
-            display: true,
-            labels: {
-              color: getComputedStyle(
-                document.documentElement,
-              ).getPropertyValue("--text-color"),
-            },
-          },
-        },
-        scales: {
-          y: {
-            title: {
-              display: true,
-              text: "Temperatur (°C)",
-              color: getComputedStyle(
-                document.documentElement,
-              ).getPropertyValue("--text-color"),
-            },
-            ticks: {
-              color: getComputedStyle(
-                document.documentElement,
-              ).getPropertyValue("--text-secondary"),
-            },
-            grid: {
-              color: getComputedStyle(
-                document.documentElement,
-              ).getPropertyValue("--border-color"),
-            },
-          },
-          x: {
-            title: {
-              display: true,
-              text: "Datum",
-              color: getComputedStyle(
-                document.documentElement,
-              ).getPropertyValue("--text-color"),
-            },
-            ticks: {
-              color: getComputedStyle(
-                document.documentElement,
-              ).getPropertyValue("--text-secondary"),
-            },
-            grid: {
-              color: getComputedStyle(
-                document.documentElement,
-              ).getPropertyValue("--border-color"),
-            },
-          },
-        },
-        interaction: {
-          intersect: false,
-          mode: "index",
-        },
-        animation: {
-          duration: 1000,
-          easing: "easeInOutQuart",
-        },
-      },
-    });
-  }
-
-  renderEnergyChart(ctx, measurements) {
-    const labels = measurements.map((m) => {
-      const date = new Date(m.datum);
-      return `${date.getDate().toString().padStart(2, "0")}.${(date.getMonth() + 1).toString().padStart(2, "0")}`;
-    });
-
-    this.currentChart = new Chart(ctx, {
-      type: "bar",
-      data: {
-        labels: labels,
-        datasets: [
-          {
-            label: "Energieverbrauch (kWh)",
-            data: measurements.map((m) => m.energieverbrauch),
-            backgroundColor: "rgba(220, 38, 38, 0.7)",
-            borderColor: "rgb(220, 38, 38)",
-            borderWidth: 1,
-          },
-          {
-            label: "Erzeugte Wärme (kWh)",
-            data: measurements.map((m) => m.erzeugteWaerme),
-            backgroundColor: "rgba(16, 185, 129, 0.7)",
-            borderColor: "rgb(16, 185, 129)",
-            borderWidth: 1,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          title: {
-            display: true,
-            text: "Energieverbrauch vs. Erzeugte Wärme",
-            font: {
-              size: 16,
-              weight: "bold",
-            },
-            color: getComputedStyle(document.documentElement).getPropertyValue(
-              "--text-color",
-            ),
-          },
-          legend: {
-            display: true,
-            labels: {
-              color: getComputedStyle(
-                document.documentElement,
-              ).getPropertyValue("--text-color"),
-            },
-          },
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            title: {
-              display: true,
-              text: "Energie (kWh)",
-              color: getComputedStyle(
-                document.documentElement,
-              ).getPropertyValue("--text-color"),
-            },
-            ticks: {
-              color: getComputedStyle(
-                document.documentElement,
-              ).getPropertyValue("--text-secondary"),
-            },
-            grid: {
-              color: getComputedStyle(
-                document.documentElement,
-              ).getPropertyValue("--border-color"),
-            },
-          },
-          x: {
-            title: {
-              display: true,
-              text: "Datum",
-              color: getComputedStyle(
-                document.documentElement,
-              ).getPropertyValue("--text-color"),
-            },
-            ticks: {
-              color: getComputedStyle(
-                document.documentElement,
-              ).getPropertyValue("--text-secondary"),
-            },
-            grid: {
-              color: getComputedStyle(
-                document.documentElement,
-              ).getPropertyValue("--border-color"),
-            },
-          },
-        },
-        animation: {
-          duration: 1000,
-          easing: "easeInOutQuart",
-        },
-      },
-    });
-  }
-
-  renderStartsChart(ctx, measurements) {
-    const labels = measurements.map((m) => {
-      const date = new Date(m.datum);
-      return `${date.getDate().toString().padStart(2, "0")}.${(date.getMonth() + 1).toString().padStart(2, "0")}`;
-    });
-
-    this.currentChart = new Chart(ctx, {
-      type: "line",
-      data: {
-        labels: labels,
-        datasets: [
-          {
-            label: "Wärmepumpe Starts",
-            data: measurements.map((m) => m.startsWaermepumpe),
-            borderColor: "rgb(147, 51, 234)",
-            backgroundColor: "rgba(147, 51, 234, 0.1)",
-            borderWidth: 3,
-            fill: true,
-            tension: 0.4,
-            pointBackgroundColor: "rgb(147, 51, 234)",
-            pointBorderColor: "#ffffff",
-            pointBorderWidth: 2,
-            pointRadius: 6,
-          },
-          {
-            label: "Δ Starts zum Vortag",
-            data: measurements.map((m) => m.deltaStartsVortag || 0),
-            borderColor: "rgb(245, 158, 11)",
-            backgroundColor: "rgba(245, 158, 11, 0.1)",
-            borderWidth: 2,
-            fill: false,
-            tension: 0.4,
-            borderDash: [5, 5],
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          title: {
-            display: true,
-            text: "Wärmepumpe Starts und Veränderungen",
-            font: {
-              size: 16,
-              weight: "bold",
-            },
-            color: getComputedStyle(document.documentElement).getPropertyValue(
-              "--text-color",
-            ),
-          },
-          legend: {
-            display: true,
-            labels: {
-              color: getComputedStyle(
-                document.documentElement,
-              ).getPropertyValue("--text-color"),
-            },
-          },
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            title: {
-              display: true,
-              text: "Anzahl Starts",
-              color: getComputedStyle(
-                document.documentElement,
-              ).getPropertyValue("--text-color"),
-            },
-            ticks: {
-              color: getComputedStyle(
-                document.documentElement,
-              ).getPropertyValue("--text-secondary"),
-            },
-            grid: {
-              color: getComputedStyle(
-                document.documentElement,
-              ).getPropertyValue("--border-color"),
-            },
-          },
-          x: {
-            title: {
-              display: true,
-              text: "Datum",
-              color: getComputedStyle(
-                document.documentElement,
-              ).getPropertyValue("--text-color"),
-            },
-            ticks: {
-              color: getComputedStyle(
-                document.documentElement,
-              ).getPropertyValue("--text-secondary"),
-            },
-            grid: {
-              color: getComputedStyle(
-                document.documentElement,
-              ).getPropertyValue("--border-color"),
-            },
-          },
-        },
-        interaction: {
-          intersect: false,
-          mode: "index",
-        },
-        animation: {
-          duration: 1000,
-          easing: "easeInOutQuart",
-        },
-      },
-    });
-  }
-
-  showNoDataChart() {
-    const container = document.getElementById("chart-container");
-    container.innerHTML = `
-            <div class="chart-controls">
-                <button id="chart-cop" class="chart-btn active">COP Verlauf</button>
-                <button id="chart-temp" class="chart-btn">Temperaturen</button>
-                <button id="chart-energy" class="chart-btn">Energie</button>
-                <button id="chart-starts" class="chart-btn">Starts</button>
-            </div>
-            <div class="empty-state" style="height: 200px; display: flex; align-items: center; justify-content: center; flex-direction: column;">
-                <h3>Keine Daten verfügbar</h3>
-                <p>Erfassen Sie Messwerte, um Diagramme zu sehen</p>
-            </div>
-        `;
-    this.setupChartControls();
   }
 
   // Helper: Monatsname
@@ -1386,18 +1618,64 @@ initChart() {
     return months[month] || "";
   }
 
-  // Update Banner für App Updates
+  // Verbesserte Update-Banner Funktion:
   showUpdateBanner() {
+    // Entferne bereits existierende Banner
+    const existingBanner = document.querySelector('.update-banner');
+    if (existingBanner) {
+      existingBanner.remove();
+    }
+
     const banner = document.createElement("div");
     banner.className = "update-banner";
     banner.innerHTML = `
-            ⬆️ Neue Version verfügbar! 
-            <button onclick="this.parentElement.style.display='none'; location.reload();">
-                Aktualisieren
-            </button>
-        `;
+    <div class="update-content">
+      <span>🆕 Neue Version verfügbar!</span>
+      <div class="update-buttons">
+        <button id="update-now" class="update-btn primary">
+          Jetzt aktualisieren
+        </button>
+        <button id="update-later" class="update-btn secondary">
+          Später
+        </button>
+      </div>
+    </div>
+  `;
+
     document.body.appendChild(banner);
     setTimeout(() => banner.classList.add("show"), 100);
+
+    // Event Listeners für Update-Buttons
+    document.getElementById("update-now").addEventListener("click", () => {
+      this.performUpdate();
+    });
+
+    document.getElementById("update-later").addEventListener("click", () => {
+      banner.remove();
+    });
+  }
+
+  // Neue Update-Funktion:
+  async performUpdate() {
+    try {
+      const registration = await navigator.serviceWorker.getRegistration();
+      if (registration && registration.waiting) {
+        // Sende Message an wartenden Service Worker
+        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+
+        // Warte auf Controller-Wechsel
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          console.log("🔄 App wird neu geladen...");
+          window.location.reload();
+        });
+      } else {
+        // Fallback: Einfach neu laden
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error("Update fehlgeschlagen:", error);
+      window.location.reload();
+    }
   }
 
   // Nachrichten anzeigen
@@ -1432,83 +1710,9 @@ initChart() {
     document.body.appendChild(container);
     return container;
   }
-
-  // Init überschreiben um Chart zu initialisieren
-  async init() {
-    this.loadData();
-    this.setupEventListeners();
-    this.updateOverview();
-    this.renderMeasurements();
-    this.setCurrentDateTime();
-    this.initChart(); // Chart initialisieren
-    this.registerServiceWorker();
-  }
-
-  // Overview updaten überschreiben um Chart zu aktualisieren
-  updateOverview() {
-    const filteredMeasurements = this.getFilteredMeasurements();
-
-    // Periode anzeigen
-    const periodeText =
-      this.currentMonth === 0
-        ? this.currentYear.toString()
-        : `${this.getMonthName(this.currentMonth)} ${this.currentYear}`;
-
-    document.getElementById("overview-periode").textContent = periodeText;
-    document.getElementById("chart-periode").textContent = periodeText;
-    document.getElementById("measurements-periode").textContent = periodeText;
-
-    if (filteredMeasurements.length === 0) {
-      document.getElementById("avg-cop").textContent = "0.0";
-      document.getElementById("total-energy").textContent = "0 kWh";
-      document.getElementById("avg-starts").textContent = "0";
-      document.getElementById("efficiency-text").textContent = "Keine Daten";
-      document.getElementById("efficiency-status").className = "overview-card";
-      this.showNoDataChart(); // Chart aktualisieren
-      return;
-    }
-
-    // Durchschnittlicher COP
-    const avgCOP =
-      filteredMeasurements.reduce((sum, m) => sum + m.cop, 0) /
-      filteredMeasurements.length;
-    document.getElementById("avg-cop").textContent = avgCOP.toFixed(1);
-
-    // Gesamtenergie
-    const totalEnergy = filteredMeasurements.reduce(
-      (sum, m) => sum + m.energieverbrauch,
-      0,
-    );
-    document.getElementById("total-energy").textContent =
-      `${totalEnergy.toFixed(1)} kWh`;
-
-    // Durchschnittliche Starts pro Tag
-    const totalStarts = filteredMeasurements.reduce(
-      (sum, m) => sum + m.startsWaermepumpe,
-      0,
-    );
-    const avgStarts = Math.round(totalStarts / filteredMeasurements.length);
-    document.getElementById("avg-starts").textContent = avgStarts.toString();
-
-    // Effizienz Status
-    this.updateEfficiencyStatus(avgCOP);
-
-    // Chart aktualisieren
-    const activeButton = document.querySelector(".chart-btn.active");
-    if (activeButton) {
-      const chartType = activeButton.id.replace("chart-", "");
-      const typeMap = {
-        cop: "cop",
-        temp: "temperature",
-        energy: "energy",
-        starts: "starts",
-      };
-      this.renderChart(typeMap[chartType] || "cop");
-    }
-  }
 }
 
-// App initialisieren wenn DOM geladen ist
-document.addEventListener("DOMContentLoaded", () => {
+// App initialisieren
+window.addEventListener("DOMContentLoaded", () => {
   window.app = new HeizungseffizienzApp();
 });

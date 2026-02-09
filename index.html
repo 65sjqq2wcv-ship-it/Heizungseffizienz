@@ -7,7 +7,10 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
     />
     <title>Heizungseffizienz</title>
-    <meta name="description" content="Heizungseffizienz überwachen und optimieren" />
+    <meta
+      name="description"
+      content="Heizungseffizienz überwachen und optimieren"
+    />
 
     <link rel="stylesheet" href="./styles.css" />
     <link rel="manifest" href="./manifest.json" />
@@ -52,17 +55,48 @@
           <div class="logo-img">🏠</div>
           <div class="header-content">
             <h1>Heizungseffizienz</h1>
-            <div class="version-info">v1.2</div>
+            <div class="version-info">v1.3</div>
           </div>
         </div>
         <div class="header-actions">
-          <button
-            id="backup-icon"
-            class="header-icon-btn"
-            title="Daten verwalten"
-          >
-            💾
-          </button>
+          <div class="menu-container">
+            <button
+              id="menu-toggle"
+              class="header-icon-btn"
+              title="Menü öffnen"
+            >
+              ☰
+            </button>
+            <div id="dropdown-menu" class="dropdown-menu">
+              <div class="menu-section">
+                <div class="menu-header">📈 Auswertung</div>
+                <button id="menu-chart-cop" class="menu-item active">
+                  📊 COP Verlauf
+                </button>
+                <button id="menu-chart-temp" class="menu-item">
+                  🌡️ Temperaturen
+                </button>
+                <button id="menu-chart-energy" class="menu-item">
+                  ⚡ Energie
+                </button>
+                <button id="menu-chart-starts" class="menu-item">
+                  🔄 Starts
+                </button>
+                <button id="menu-chart-kwh" class="menu-item">
+                  📈 kW Zählerstand
+                </button>
+              </div>
+
+              <div class="menu-divider"></div>
+
+              <div class="menu-section">
+                <div class="menu-header">💾 Daten</div>
+                <button id="menu-backup" class="menu-item">
+                  💾 Daten verwalten
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -132,7 +166,7 @@
               <label for="datum-uhrzeit">Datum und Uhrzeit:</label>
               <input type="datetime-local" id="datum-uhrzeit" required />
             </div>
-            
+
             <div class="form-row">
               <div class="form-group">
                 <label for="energieverbrauch">Energieverbrauch (kWh):</label>
@@ -228,7 +262,9 @@
             </div>
 
             <div class="form-buttons">
-              <button type="submit" class="btn-primary">Messwert speichern</button>
+              <button type="submit" class="btn-primary">
+                Messwert speichern
+              </button>
               <button
                 type="button"
                 id="measurement-cancel"
@@ -245,7 +281,7 @@
         <section class="chart-section">
           <h2>📈 Auswertung <span id="chart-periode">2024</span></h2>
           <div class="chart-container" id="chart-container">
-            <p>Diagramm wird hier angezeigt<br><small>(Chart.js Integration geplant)</small></p>
+            <canvas id="efficiency-chart" width="400" height="200"></canvas>
           </div>
         </section>
 
@@ -268,12 +304,12 @@
         </h2>
         <form id="edit-form">
           <input type="hidden" id="edit-id" />
-          
+
           <div class="form-group">
             <label for="edit-datum-uhrzeit">Datum und Uhrzeit:</label>
             <input type="datetime-local" id="edit-datum-uhrzeit" required />
           </div>
-          
+
           <div class="form-group">
             <label for="edit-energieverbrauch">Energieverbrauch (kWh):</label>
             <input
@@ -284,7 +320,7 @@
               required
             />
           </div>
-          
+
           <div class="form-group">
             <label for="edit-erzeugte-waerme">Erzeugte Wärme (kWh):</label>
             <input
@@ -295,7 +331,7 @@
               required
             />
           </div>
-          
+
           <div class="form-group">
             <label for="edit-aussentemperatur">Außentemperatur (°C):</label>
             <input
@@ -305,7 +341,7 @@
               required
             />
           </div>
-          
+
           <div class="form-group">
             <label for="edit-raumtemperatur">Raumtemperatur (°C):</label>
             <input
@@ -316,7 +352,7 @@
               required
             />
           </div>
-          
+
           <div class="form-group">
             <label for="edit-vorlauftemperatur">Vorlauftemperatur (°C):</label>
             <input
@@ -327,7 +363,7 @@
               required
             />
           </div>
-          
+
           <div class="form-group">
             <label for="edit-starts-waermepumpe">Starts Wärmepumpe:</label>
             <input
@@ -337,7 +373,7 @@
               required
             />
           </div>
-          
+
           <div class="form-group">
             <label for="edit-kw-zaehlerstand">kW Zählerstand:</label>
             <input
@@ -348,15 +384,12 @@
               required
             />
           </div>
-          
+
           <div class="form-group">
             <label for="edit-bemerkung">Bemerkung:</label>
-            <textarea
-              id="edit-bemerkung"
-              rows="2"
-            ></textarea>
+            <textarea id="edit-bemerkung" rows="2"></textarea>
           </div>
-          
+
           <div class="modal-buttons">
             <button type="submit" class="btn-primary">Speichern</button>
             <button type="button" id="edit-cancel" class="btn-secondary">
@@ -445,9 +478,9 @@
           <div class="backup-info-section">
             <h3>💡 Backup-Tipp</h3>
             <p>
-              Erstellen Sie regelmäßig ein Backup Ihrer Heizungsdaten. Die JSON-Datei
-              enthält alle Messwerte mit COP-Berechnungen und funktioniert mit
-              Hell-/Dunkelmodus.
+              Erstellen Sie regelmäßig ein Backup Ihrer Heizungsdaten. Die
+              JSON-Datei enthält alle Messwerte mit COP-Berechnungen und
+              funktioniert mit Hell-/Dunkelmodus.
             </p>
             <div class="last-backup" id="last-backup-info">
               Noch kein Backup erstellt
