@@ -1,5 +1,4 @@
 // Heizungseffizienz App - JavaScript
-// Version: 1.7
 
 class HeizungseffizienzApp {
   constructor() {
@@ -1437,6 +1436,8 @@ class HeizungseffizienzApp {
     this.renderMeasurements();
     this.renderChart(this.currentChartType); // ← Chart-Update hinzufügen
     this.showMessage("Messwert erfolgreich aktualisiert!", "success");
+    // ← Diese Zeile hinzufügen:
+    this.closeEditModal();
   }
 
   // Messwert löschen
@@ -1515,7 +1516,7 @@ class HeizungseffizienzApp {
     const exportData = {
       measurements: this.measurements,
       exportDate: new Date().toISOString(),
-      appVersion: "1.7",
+      appVersion: "1.8",
       totalMeasurements: this.measurements.length,
     };
 
