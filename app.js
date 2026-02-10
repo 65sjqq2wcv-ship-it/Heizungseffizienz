@@ -1,5 +1,5 @@
 // Heizungseffizienz App - JavaScript
-// Version: 1.6
+// Version: 1.7
 
 class HeizungseffizienzApp {
   constructor() {
@@ -8,6 +8,8 @@ class HeizungseffizienzApp {
     this.currentYear = new Date().getFullYear();
     this.currentMonth = 0; // 0 = alle Monate
     this.currentChart = null;
+    this.currentChartType = 'cop'; // ← NEU: Aktueller Chart-Typ tracken
+    this.pendingImportData = null;
 
     this.init();
   }
@@ -18,11 +20,11 @@ class HeizungseffizienzApp {
     this.updateOverview();
     this.renderMeasurements();
     this.setCurrentDateTime();
-    this.initChart();
+    this.initChart(); // Hier wird automatisch das COP-Chart geladen und Menu aktiviert
     this.registerServiceWorker();
   }
 
-  // Service Worker Registration - Ersetze die bestehende Funktion:
+  // Service Worker Registration
   async registerServiceWorker() {
     if ("serviceWorker" in navigator) {
       try {
@@ -87,15 +89,25 @@ class HeizungseffizienzApp {
         this.measurements = data.measurements || [];
         this.currentYear = data.currentYear || new Date().getFullYear();
         this.currentMonth = data.currentMonth || 0;
+        this.currentChartType = data.currentChartType || 'cop';
 
         // UI State wiederherstellen
         document.getElementById("jahresauswahl").value = this.currentYear;
         document.getElementById("monatsauswahl").value = this.currentMonth;
+
+        // Menu wird beim ersten Chart-Render automatisch gesetzt
       } catch (error) {
         console.error("Fehler beim Laden der Daten:", error);
         this.measurements = [];
       }
     }
+  }
+
+  // Neue Funktion hinzufügen:
+  restoreUIState() {
+    // Aktives Chart-Menü wiederherstellen
+    const menuId = `menu-chart-${this.currentChartType === 'temperature' ? 'temp' : this.currentChartType}`;
+    this.setActiveMenuChartButton(menuId);
   }
 
   // Daten speichern
@@ -104,6 +116,7 @@ class HeizungseffizienzApp {
       measurements: this.measurements,
       currentYear: this.currentYear,
       currentMonth: this.currentMonth,
+      currentChartType: this.currentChartType, // ← NEU: Chart-Typ speichern
       lastSaved: new Date().toISOString(),
     };
 
@@ -123,6 +136,7 @@ class HeizungseffizienzApp {
       this.saveData();
       this.updateOverview();
       this.renderMeasurements();
+      this.renderChart(this.currentChartType);
     });
 
     document.getElementById("monatsauswahl").addEventListener("change", (e) => {
@@ -130,6 +144,7 @@ class HeizungseffizienzApp {
       this.saveData();
       this.updateOverview();
       this.renderMeasurements();
+      this.renderChart(this.currentChartType);
     });
 
     // Messwert hinzufügen
@@ -160,7 +175,7 @@ class HeizungseffizienzApp {
       this.closeEditModal();
     });
 
-    // Dropdown Menu
+    // Dropdown Menu Toggle
     document.getElementById("menu-toggle").addEventListener("click", (e) => {
       e.stopPropagation();
       this.toggleDropdownMenu();
@@ -168,30 +183,35 @@ class HeizungseffizienzApp {
 
     // Menu Chart Buttons
     document.getElementById("menu-chart-cop").addEventListener("click", () => {
+      this.currentChartType = 'cop';
       this.setActiveMenuChartButton("menu-chart-cop");
       this.renderChart("cop");
       this.closeDropdownMenu();
     });
 
     document.getElementById("menu-chart-temp").addEventListener("click", () => {
+      this.currentChartType = 'temperature';
       this.setActiveMenuChartButton("menu-chart-temp");
       this.renderChart("temperature");
       this.closeDropdownMenu();
     });
 
     document.getElementById("menu-chart-energy").addEventListener("click", () => {
+      this.currentChartType = 'energy';
       this.setActiveMenuChartButton("menu-chart-energy");
       this.renderChart("energy");
       this.closeDropdownMenu();
     });
 
     document.getElementById("menu-chart-starts").addEventListener("click", () => {
+      this.currentChartType = 'starts';
       this.setActiveMenuChartButton("menu-chart-starts");
       this.renderChart("starts");
       this.closeDropdownMenu();
     });
 
     document.getElementById("menu-chart-kwh").addEventListener("click", () => {
+      this.currentChartType = 'kwh';
       this.setActiveMenuChartButton("menu-chart-kwh");
       this.renderChart("kwh");
       this.closeDropdownMenu();
@@ -213,13 +233,14 @@ class HeizungseffizienzApp {
     // Backup/Import
     this.setupBackupHandlers();
 
-    // Modal schließen bei Klick außerhalb
+    // Modal schließen bei Klick außerhalb + Dropdown Menu schließen
     document.addEventListener("click", (e) => {
       const editModal = document.getElementById("edit-modal");
       const backupModal = document.getElementById("backup-modal");
       const dropdownMenu = document.getElementById("dropdown-menu");
       const menuToggle = document.getElementById("menu-toggle");
 
+      // Modal schließen
       if (e.target === editModal) {
         this.closeEditModal();
       }
@@ -227,23 +248,24 @@ class HeizungseffizienzApp {
         this.closeBackupModal();
       }
 
-      // Dropdown schließen wenn außerhalb geklickt
+      // Dropdown Menu schließen wenn außerhalb geklickt
       if (!dropdownMenu.contains(e.target) && !menuToggle.contains(e.target)) {
+        this.closeDropdownMenu();
+      }
+    });
+
+    // ESC-Taste zum Schließen von Modals und Dropdown
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        // Schließe alle offenen Modals und Dropdowns
+        this.closeEditModal();
+        this.closeBackupModal();
         this.closeDropdownMenu();
       }
     });
   }
 
-  // Menu Modal Funktionen
-  openMenuModal() {
-    document.getElementById("menu-modal").style.display = "block";
-  }
-
-  closeMenuModal() {
-    document.getElementById("menu-modal").style.display = "none";
-  }
-
-  // Dropdown Menu Funktionen - Ersetze Menu Modal Funktionen durch:
+  // Dropdown Menu Funktionen
   toggleDropdownMenu() {
     const dropdown = document.getElementById("dropdown-menu");
     dropdown.classList.toggle("show");
@@ -254,10 +276,17 @@ class HeizungseffizienzApp {
   }
 
   setActiveMenuChartButton(activeId) {
+    // Sicherheitsüberprüfung ob Element existiert
+    const activeElement = document.getElementById(activeId);
+    if (!activeElement) {
+      console.warn(`Menu button with id '${activeId}' not found`);
+      return;
+    }
+
     document.querySelectorAll(".menu-item").forEach((btn) => {
       btn.classList.remove("active");
     });
-    document.getElementById(activeId).classList.add("active");
+    activeElement.classList.add("active");
   }
 
   // Chart initialisieren
@@ -265,20 +294,86 @@ class HeizungseffizienzApp {
     this.renderChart('cop');
   }
 
-  // Chart ohne Daten
+  // Chart ohne Daten - KORRIGIERT
   showNoDataChart() {
-    const container = document.getElementById("chart-container");
-    container.innerHTML = `
-      <div class="empty-state" style="height: 100%; display: flex; align-items: center; justify-content: center; flex-direction: column;">
-        <h3>Keine Daten verfügbar</h3>
-        <p>Erfassen Sie Messwerte, um Diagramme zu sehen</p>
-      </div>
-    `;
+    // Zerstöre existierenden Chart
+    if (this.currentChart) {
+      this.currentChart.destroy();
+      this.currentChart = null;
+    }
+
+    // Canvas beibehalten und Chart mit "Keine Daten" erstellen
+    const canvas = document.getElementById("efficiency-chart");
+    const ctx = canvas.getContext("2d");
+
+    this.currentChart = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: ['Keine Daten'],
+        datasets: [{
+          data: [1],
+          backgroundColor: ['#e2e8f0'],
+          borderColor: ['#cbd5e1'],
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: false
+          },
+          title: {
+            display: true,
+            text: 'Keine Daten für den ausgewählten Zeitraum',
+            font: {
+              size: 16,
+              weight: 'bold'
+            },
+            color: getComputedStyle(document.documentElement).getPropertyValue('--text-color')
+          },
+          tooltip: {
+            enabled: false
+          }
+        },
+        events: [], // Keine Interaktionen
+        animation: {
+          duration: 0 // Keine Animation
+        }
+      }
+    });
   }
 
-  // Chart rendern
+  // Gefilterte Messungen abrufen
+  getFilteredMeasurements() {
+    return this.measurements.filter(measurement => {
+      const date = new Date(measurement.datum);
+      const year = date.getFullYear();
+      const month = date.getMonth() + 1;
+
+      // Jahr filtern
+      if (year !== this.currentYear) return false;
+
+      // Monat filtern (0 = alle Monate)
+      if (this.currentMonth !== 0 && month !== this.currentMonth) return false;
+
+      return true;
+    });
+  }
+
+  // Chart rendern - VERBESSERT
   renderChart(type) {
+    // Chart-Typ speichern
+    this.currentChartType = type;
+
     const filteredMeasurements = this.getFilteredMeasurements();
+
+    // Zerstöre existierenden Chart IMMER zuerst
+    if (this.currentChart) {
+      this.currentChart.destroy();
+      this.currentChart = null;
+    }
 
     if (filteredMeasurements.length === 0) {
       this.showNoDataChart();
@@ -288,12 +383,14 @@ class HeizungseffizienzApp {
     // Sortiere nach Datum
     filteredMeasurements.sort((a, b) => new Date(a.datum) - new Date(b.datum));
 
-    // Zerstöre existierenden Chart
-    if (this.currentChart) {
-      this.currentChart.destroy();
+    // Canvas neu holen
+    const canvas = document.getElementById("efficiency-chart");
+    if (!canvas) {
+      console.error("Chart canvas not found!");
+      return;
     }
 
-    const ctx = document.getElementById("efficiency-chart").getContext("2d");
+    const ctx = canvas.getContext("2d");
 
     switch (type) {
       case "cop":
@@ -311,184 +408,16 @@ class HeizungseffizienzApp {
       case "kwh":
         this.renderKWhChart(ctx, filteredMeasurements);
         break;
+      default:
+        console.warn(`Unknown chart type: ${type}`);
+        this.renderCOPChart(ctx, filteredMeasurements);
     }
-  }
-
-  // Neue Chart-Funktion für kW Zählerstand:
-  renderKWhChart(ctx, measurements) {
-    const labels = measurements.map((m) => {
-      const date = new Date(m.datum);
-      return `${date.getDate().toString().padStart(2, "0")}.${(date.getMonth() + 1).toString().padStart(2, "0")}`;
-    });
-
-    // Berechne Verbrauch zwischen Messungen
-    const consumption = [];
-    for (let i = 1; i < measurements.length; i++) {
-      const diff = measurements[i].kwZaehlerstand - measurements[i - 1].kwZaehlerstand;
-      consumption.push(diff > 0 ? diff : 0);
-    }
-    consumption.unshift(0); // Erste Messung hat keinen Verbrauch
-
-    this.currentChart = new Chart(ctx, {
-      type: "line",
-      data: {
-        labels: labels,
-        datasets: [
-          {
-            label: "kW Zählerstand",
-            data: measurements.map((m) => m.kwZaehlerstand),
-            borderColor: "rgb(139, 69, 19)",
-            backgroundColor: "rgba(139, 69, 19, 0.1)",
-            borderWidth: 3,
-            fill: false,
-            tension: 0.4,
-            pointBackgroundColor: "rgb(139, 69, 19)",
-            pointBorderColor: "#ffffff",
-            pointBorderWidth: 2,
-            pointRadius: 6,
-            pointHoverRadius: 8,
-            yAxisID: 'y'
-          },
-          {
-            label: "Verbrauch seit letzter Messung (kWh)",
-            data: consumption,
-            type: 'bar',
-            backgroundColor: "rgba(255, 99, 132, 0.7)",
-            borderColor: "rgb(255, 99, 132)",
-            borderWidth: 1,
-            yAxisID: 'y1'
-          },
-          {
-            label: "Wärmepumpen-Verbrauch (kWh)",
-            data: measurements.map((m) => m.energieverbrauch),
-            borderColor: "rgb(75, 192, 192)",
-            backgroundColor: "rgba(75, 192, 192, 0.1)",
-            borderWidth: 2,
-            fill: false,
-            tension: 0.4,
-            borderDash: [5, 5],
-            yAxisID: 'y1'
-          }
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        interaction: {
-          mode: 'index',
-          intersect: false,
-        },
-        plugins: {
-          title: {
-            display: true,
-            text: "kW Zählerstand und Verbrauch",
-            font: {
-              size: 16,
-              weight: "bold",
-            },
-            color: getComputedStyle(document.documentElement).getPropertyValue(
-              "--text-color",
-            ),
-          },
-          legend: {
-            display: true,
-            labels: {
-              color: getComputedStyle(
-                document.documentElement,
-              ).getPropertyValue("--text-color"),
-              usePointStyle: true,
-            },
-          },
-          tooltip: {
-            callbacks: {
-              afterLabel: function (context) {
-                if (context.datasetIndex === 0) {
-                  const measurement = measurements[context.dataIndex];
-                  return [
-                    `Differenz zu WP: ${measurement.differenzKwWp || 0} kWh`,
-                    `WP-Verbrauch: ${measurement.energieverbrauch} kWh`
-                  ];
-                }
-                return null;
-              }
-            }
-          }
-        },
-        scales: {
-          x: {
-            title: {
-              display: true,
-              text: "Datum",
-              color: getComputedStyle(
-                document.documentElement,
-              ).getPropertyValue("--text-color"),
-            },
-            ticks: {
-              color: getComputedStyle(
-                document.documentElement,
-              ).getPropertyValue("--text-secondary"),
-            },
-            grid: {
-              color: getComputedStyle(
-                document.documentElement,
-              ).getPropertyValue("--border-color"),
-            },
-          },
-          y: {
-            type: 'linear',
-            display: true,
-            position: 'left',
-            title: {
-              display: true,
-              text: "Zählerstand (kWh)",
-              color: getComputedStyle(
-                document.documentElement,
-              ).getPropertyValue("--text-color"),
-            },
-            ticks: {
-              color: getComputedStyle(
-                document.documentElement,
-              ).getPropertyValue("--text-secondary"),
-            },
-            grid: {
-              color: getComputedStyle(
-                document.documentElement,
-              ).getPropertyValue("--border-color"),
-            },
-          },
-          y1: {
-            type: 'linear',
-            display: true,
-            position: 'right',
-            title: {
-              display: true,
-              text: "Verbrauch (kWh)",
-              color: getComputedStyle(
-                document.documentElement,
-              ).getPropertyValue("--text-color"),
-            },
-            ticks: {
-              color: getComputedStyle(
-                document.documentElement,
-              ).getPropertyValue("--text-secondary"),
-            },
-            grid: {
-              drawOnChartArea: false,
-            },
-          },
-        },
-        animation: {
-          duration: 1000,
-          easing: "easeInOutQuart",
-        },
-      },
-    });
   }
 
   renderCOPChart(ctx, measurements) {
     const labels = measurements.map((m) => {
       const date = new Date(m.datum);
-      return `${date.getDate().toString().padStart(2, "0")}.${(date.getMonth() + 1).toString().padStart(2, "0")}`;
+      return `$${date.getDate().toString().padStart(2, "0")}.$${(date.getMonth() + 1).toString().padStart(2, "0")}`;
     });
 
     const copData = measurements.map((m) => m.cop);
@@ -594,7 +523,7 @@ class HeizungseffizienzApp {
   renderTemperatureChart(ctx, measurements) {
     const labels = measurements.map((m) => {
       const date = new Date(m.datum);
-      return `${date.getDate().toString().padStart(2, "0")}.${(date.getMonth() + 1).toString().padStart(2, "0")}`;
+      return `$${date.getDate().toString().padStart(2, "0")}.$${(date.getMonth() + 1).toString().padStart(2, "0")}`;
     });
 
     this.currentChart = new Chart(ctx, {
@@ -710,7 +639,7 @@ class HeizungseffizienzApp {
   renderEnergyChart(ctx, measurements) {
     const labels = measurements.map((m) => {
       const date = new Date(m.datum);
-      return `${date.getDate().toString().padStart(2, "0")}.${(date.getMonth() + 1).toString().padStart(2, "0")}`;
+      return `$${date.getDate().toString().padStart(2, "0")}.$${(date.getMonth() + 1).toString().padStart(2, "0")}`;
     });
 
     this.currentChart = new Chart(ctx, {
@@ -810,7 +739,7 @@ class HeizungseffizienzApp {
   renderStartsChart(ctx, measurements) {
     const labels = measurements.map((m) => {
       const date = new Date(m.datum);
-      return `${date.getDate().toString().padStart(2, "0")}.${(date.getMonth() + 1).toString().padStart(2, "0")}`;
+      return `$${date.getDate().toString().padStart(2, "0")}.$${(date.getMonth() + 1).toString().padStart(2, "0")}`;
     });
 
     this.currentChart = new Chart(ctx, {
@@ -920,6 +849,178 @@ class HeizungseffizienzApp {
     });
   }
 
+  renderKWhChart(ctx, measurements) {
+    const labels = measurements.map((m) => {
+      const date = new Date(m.datum);
+      return `${date.getDate().toString().padStart(2, "0")}.${(date.getMonth() + 1).toString().padStart(2, "0")}`;
+    });
+
+    // Berechne Verbrauch zwischen Messungen
+    const consumption = [];
+    for (let i = 1; i < measurements.length; i++) {
+      const diff = measurements[i].kwZaehlerstand - measurements[i - 1].kwZaehlerstand;
+      consumption.push(diff > 0 ? diff : 0);
+    }
+    consumption.unshift(0); // Erste Messung hat keinen Verbrauch
+
+    this.currentChart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: "kW Zählerstand",
+            data: measurements.map((m) => m.kwZaehlerstand),
+            borderColor: "rgb(99, 102, 241)",
+            backgroundColor: "rgba(99, 102, 241, 0.1)",
+            borderWidth: 3,
+            fill: false,
+            tension: 0.4,
+            pointBackgroundColor: "rgb(99, 102, 241)",
+            pointBorderColor: "#ffffff",
+            pointBorderWidth: 2,
+            pointRadius: 6,
+            yAxisID: 'y'
+          },
+          {
+            label: "Verbrauch zwischen Messungen (kWh)",
+            data: consumption,
+            type: 'bar', // Bar Chart für Verbrauch
+            backgroundColor: "rgba(239, 68, 68, 0.7)",
+            borderColor: "rgb(239, 68, 68)",
+            borderWidth: 1,
+            yAxisID: 'y1'
+          },
+          {
+            label: "Wärmepumpen-Verbrauch (kWh)", // ← NEU: Fehlende Messreihe
+            data: measurements.map((m) => m.energieverbrauch),
+            borderColor: "rgb(16, 185, 129)",
+            backgroundColor: "rgba(16, 185, 129, 0.1)",
+            borderWidth: 2,
+            fill: false,
+            tension: 0.4,
+            borderDash: [5, 5], // Gestrichelte Linie
+            pointBackgroundColor: "rgb(16, 185, 129)",
+            pointBorderColor: "#ffffff",
+            pointBorderWidth: 1,
+            pointRadius: 4,
+            yAxisID: 'y1'
+          }
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+          mode: 'index',
+          intersect: false,
+        },
+        plugins: {
+          title: {
+            display: true,
+            text: "kW Zählerstand und Verbrauch",
+            font: {
+              size: 16,
+              weight: "bold",
+            },
+            color: getComputedStyle(document.documentElement).getPropertyValue(
+              "--text-color",
+            ),
+          },
+          legend: {
+            display: true,
+            labels: {
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--text-color"),
+              usePointStyle: true,
+            },
+          },
+          tooltip: {
+            callbacks: {
+              afterLabel: function (context) {
+                if (context.datasetIndex === 0) {
+                  const measurement = measurements[context.dataIndex];
+                  return [
+                    `Differenz zu WP: ${(measurement.kwZaehlerstand - measurement.energieverbrauch).toFixed(1)} kWh`,
+                  ];
+                }
+                return null;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            title: {
+              display: true,
+              text: "Datum",
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--text-color"),
+            },
+            ticks: {
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--text-secondary"),
+            },
+            grid: {
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--border-color"),
+            },
+          },
+          y: {
+            type: 'linear',
+            display: true,
+            position: 'left',
+            title: {
+              display: true,
+              text: "kW Zählerstand (kWh)",
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--text-color"),
+            },
+            ticks: {
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--text-secondary"),
+            },
+            grid: {
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--border-color"),
+            },
+          },
+          y1: {
+            type: 'linear',
+            display: true,
+            position: 'right',
+            title: {
+              display: true,
+              text: "Verbrauch (kWh)",
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--text-color"),
+            },
+            ticks: {
+              color: getComputedStyle(
+                document.documentElement,
+              ).getPropertyValue("--text-secondary"),
+            },
+            grid: {
+              drawOnChartArea: false, // Nur rechte Y-Achse ohne Grid
+            },
+          },
+        },
+        animation: {
+          duration: 1000,
+          easing: "easeInOutQuart",
+        },
+      },
+    });
+  }
+
   // Aktuelle Datum/Zeit setzen
   setCurrentDateTime() {
     const now = new Date();
@@ -986,6 +1087,7 @@ class HeizungseffizienzApp {
     this.clearForm();
     this.updateOverview();
     this.renderMeasurements();
+    this.renderChart(this.currentChartType); // ← Aktueller Chart statt "cop"
     this.cancelEdit();
   }
 
@@ -1039,86 +1141,69 @@ class HeizungseffizienzApp {
     );
   }
 
-  // Messung anhand Datum finden
+  // Hilfsfunktion um Messung nach Datum zu finden
   findMeasurementByDate(date) {
-    const targetDateStr = date.toISOString().split("T")[0];
-    return this.measurements.find((m) => {
-      const measurementDateStr = new Date(m.datum).toISOString().split("T")[0];
-      return measurementDateStr === targetDateStr;
+    const searchDate = date.toDateString();
+    return this.measurements.find(m => {
+      const measurementDate = new Date(m.datum).toDateString();
+      return measurementDate === searchDate;
     });
   }
 
-  // Alle Delta-Werte neu berechnen
+  // Delta-Werte neu berechnen
   recalculateAllDeltas() {
-    // Sortieren nach Datum für korrekte Delta-Berechnung
+    // Sortiere alle Messungen nach Datum
     this.measurements.sort((a, b) => new Date(a.datum) - new Date(b.datum));
 
-    this.measurements.forEach((measurement) => {
-      measurement.deltaVerbrauchVortag =
-        this.calculateDeltaVerbrauch(measurement);
+    this.measurements.forEach(measurement => {
+      measurement.deltaVerbrauchVortag = this.calculateDeltaVerbrauch(measurement);
       measurement.deltaStartsVortag = this.calculateDeltaStarts(measurement);
-      measurement.differenzKwWp = this.calculateDifferenzKwWp(measurement);
     });
   }
 
-  // Formular validieren
-  validateMeasurement(data) {
-    if (!data.datumUhrzeit || !data.energieverbrauch || !data.erzeugteWaerme) {
-      this.showMessage("Bitte füllen Sie alle Pflichtfelder aus!", "error");
-      return false;
-    }
-
-    if (
-      parseFloat(data.energieverbrauch) <= 0 ||
-      parseFloat(data.erzeugteWaerme) <= 0
-    ) {
-      this.showMessage(
-        "Energieverbrauch und Wärme müssen größer als 0 sein!",
-        "error",
-      );
-      return false;
-    }
-
-    return true;
-  }
-
-  // Formular Daten abrufen
+  // Formulardaten abrufen
   getFormData(formId) {
     const form = document.getElementById(formId);
-    const formData = new FormData(form);
-    const data = {};
+    const formData = {};
 
-    // Spezifische Feldnamen mapping
     const fieldMapping = {
-      "datum-uhrzeit": "datumUhrzeit",
-      energieverbrauch: "energieverbrauch",
-      "erzeugte-waerme": "erzeugteWaerme",
-      aussentemperatur: "aussentemperatur",
-      raumtemperatur: "raumtemperatur",
-      vorlauftemperatur: "vorlauftemperatur",
-      "starts-waermepumpe": "startsWaermepumpe",
-      "kw-zaehlerstand": "kwZaehlerstand",
-      bemerkung: "bemerkung",
-      // Edit form fields
-      "edit-datum-uhrzeit": "datumUhrzeit",
-      "edit-energieverbrauch": "energieverbrauch",
-      "edit-erzeugte-waerme": "erzeugteWaerme",
-      "edit-aussentemperatur": "aussentemperatur",
-      "edit-raumtemperatur": "raumtemperatur",
-      "edit-vorlauftemperatur": "vorlauftemperatur",
-      "edit-starts-waermepumpe": "startsWaermepumpe",
-      "edit-kw-zaehlerstand": "kwZaehlerstand",
-      "edit-bemerkung": "bemerkung",
+      'datum-uhrzeit': 'datumUhrzeit',
+      'energieverbrauch': 'energieverbrauch',
+      'erzeugte-waerme': 'erzeugteWaerme',
+      'aussentemperatur': 'aussentemperatur',
+      'raumtemperatur': 'raumtemperatur',
+      'vorlauftemperatur': 'vorlauftemperatur',
+      'starts-waermepumpe': 'startsWaermepumpe',
+      'kw-zaehlerstand': 'kwZaehlerstand',
+      'bemerkung': 'bemerkung',
+      // Edit-Form Felder
+      'edit-datum-uhrzeit': 'datumUhrzeit',
+      'edit-energieverbrauch': 'energieverbrauch',
+      'edit-erzeugte-waerme': 'erzeugteWaerme',
+      'edit-aussentemperatur': 'aussentemperatur',
+      'edit-raumtemperatur': 'raumtemperatur',
+      'edit-vorlauftemperatur': 'vorlauftemperatur',
+      'edit-starts-waermepumpe': 'startsWaermepumpe',
+      'edit-kw-zaehlerstand': 'kwZaehlerstand',
+      'edit-bemerkung': 'bemerkung'
     };
 
-    // Alle Inputs durchgehen
     const inputs = form.querySelectorAll("input, textarea, select");
     inputs.forEach((input) => {
       const mappedName = fieldMapping[input.id] || input.id;
-      data[mappedName] = input.value;
+      formData[mappedName] = input.value;
     });
 
-    return data;
+    return formData;
+  }
+
+  // Validierung
+  validateMeasurement(formData) {
+    if (!formData.datumUhrzeit) {
+      this.showMessage('Bitte Datum und Uhrzeit eingeben!', 'error');
+      return false;
+    }
+    return true;
   }
 
   // Formular zurücksetzen
@@ -1136,7 +1221,7 @@ class HeizungseffizienzApp {
     this.clearForm();
   }
 
-  // In updateOverview() nach den bestehenden Berechnungen hinzufügen:
+  // Übersicht aktualisieren
   updateOverview() {
     const filteredMeasurements = this.getFilteredMeasurements();
 
@@ -1211,23 +1296,6 @@ class HeizungseffizienzApp {
       efficiencyElement.className = "overview-card efficiency-poor";
       efficiencyTextElement.textContent = "Verbesserungsbedarf";
     }
-
-    // Chart aktualisieren
-    this.renderChart("cop");
-  }
-
-  // Gefilterte Messungen abrufen
-  getFilteredMeasurements() {
-    return this.measurements.filter((measurement) => {
-      const date = new Date(measurement.datum);
-      const year = date.getFullYear();
-      const month = date.getMonth() + 1;
-
-      if (year !== this.currentYear) return false;
-      if (this.currentMonth !== 0 && month !== this.currentMonth) return false;
-
-      return true;
-    });
   }
 
   // Messwerte rendern
@@ -1237,12 +1305,12 @@ class HeizungseffizienzApp {
 
     if (filteredMeasurements.length === 0) {
       container.innerHTML = `
-            <div class="empty-state">
-                <h3>Keine Messwerte vorhanden</h3>
-                <p>Erfassen Sie Ihre ersten Heizungsdaten oben im Formular.</p>
-                <p><small>Aktuell gewählt: ${this.currentYear}, Monat: ${this.currentMonth === 0 ? "Alle" : this.getMonthName(this.currentMonth)}</small></p>
-            </div>
-        `;
+        <div class="empty-state">
+          <h3>Keine Messwerte vorhanden</h3>
+          <p>Erfassen Sie Ihre ersten Heizungsdaten oben im Formular.</p>
+          <p><small>Aktuell gewählt: ${this.currentYear}, Monat: ${this.currentMonth === 0 ? "Alle" : this.getMonthName(this.currentMonth)}</small></p>
+        </div>
+      `;
       return;
     }
 
@@ -1263,26 +1331,26 @@ class HeizungseffizienzApp {
         });
 
         return `
-            <div class="data-item">
-                <div class="data-info">
-                    <div class="data-date">${datumStr} ${uhrzeitStr}</div>
-                    <div class="data-details">
-                        COP: <strong>${measurement.cop}</strong> | 
-                        ${measurement.energieverbrauch}kWh → ${measurement.erzeugteWaerme}kWh | 
-                        Außen: ${measurement.aussentemperatur}°C | 
-                        Starts: ${measurement.startsWaermepumpe}
-                        ${measurement.bemerkung ? `<br><em>${measurement.bemerkung}</em>` : ""}
-                    </div>
-                </div>
-                <div class="data-actions">
-                    <button class="btn-icon" onclick="window.app.editMeasurement('${measurement.id}')" title="Bearbeiten">
-                        ✏️
-                    </button>
-                    <button class="btn-icon danger" onclick="window.app.deleteMeasurement('${measurement.id}')" title="Löschen">
-                        🗑️
-                    </button>
-                </div>
+          <div class="data-item">
+            <div class="data-info">
+              <div class="data-date">${datumStr} ${uhrzeitStr}</div>
+              <div class="data-details">
+                COP: <strong>${measurement.cop}</strong> | 
+                ${measurement.energieverbrauch}kWh → ${measurement.erzeugteWaerme}kWh | 
+                Außen: ${measurement.aussentemperatur}°C | 
+                Starts: ${measurement.startsWaermepumpe}
+                ${measurement.bemerkung ? `<br><em>${measurement.bemerkung}</em>` : ""}
+              </div>
             </div>
+            <div class="data-actions">
+              <button class="btn-icon" onclick="window.app.editMeasurement('${measurement.id}')" title="Bearbeiten">
+                ✏️
+              </button>
+              <button class="btn-icon danger" onclick="window.app.deleteMeasurement('${measurement.id}')" title="Löschen">
+                🗑️
+              </button>
+            </div>
+          </div>
         `;
       })
       .join("");
@@ -1367,7 +1435,7 @@ class HeizungseffizienzApp {
     this.saveData();
     this.updateOverview();
     this.renderMeasurements();
-    this.closeEditModal();
+    this.renderChart(this.currentChartType); // ← Chart-Update hinzufügen
     this.showMessage("Messwert erfolgreich aktualisiert!", "success");
   }
 
@@ -1385,6 +1453,7 @@ class HeizungseffizienzApp {
     this.saveData();
     this.updateOverview();
     this.renderMeasurements();
+    this.renderChart(this.currentChartType); // ← NEU: Chart-Update hinzufügen
     this.showMessage("Messwert gelöscht!", "success");
   }
 
@@ -1446,7 +1515,7 @@ class HeizungseffizienzApp {
     const exportData = {
       measurements: this.measurements,
       exportDate: new Date().toISOString(),
-      appVersion: "1.6",
+      appVersion: "1.7",
       totalMeasurements: this.measurements.length,
     };
 
@@ -1518,69 +1587,37 @@ class HeizungseffizienzApp {
 
     switch (importMode) {
       case "replace":
-        this.measurements = [...importMeasurements];
-        this.showMessage(
-          `Alle Daten ersetzt! ${importMeasurements.length} Messwerte importiert.`,
-          "success",
-        );
+        this.measurements = importMeasurements;
+        this.showMessage(`Alle Daten ersetzt! ${importMeasurements.length} Messwerte geladen.`, "success");
         break;
 
       case "merge":
-        // Bestehende IDs sammeln
-        const existingIds = new Set(this.measurements.map((m) => m.id));
-        const newMeasurements = importMeasurements.filter(
-          (m) => !existingIds.has(m.id),
-        );
-        this.measurements = [...this.measurements, ...newMeasurements];
-        this.showMessage(
-          `Daten zusammengeführt! ${newMeasurements.length} neue Messwerte hinzugefügt.`,
-          "success",
-        );
+        // Vorhandene IDs sammeln
+        const existingIds = new Set(this.measurements.map(m => m.id));
+        const newMeasurements = importMeasurements.filter(m => !existingIds.has(m.id));
+        this.measurements.push(...newMeasurements);
+        this.showMessage(`${newMeasurements.length} neue Messwerte hinzugefügt.`, "success");
         break;
 
       case "add":
-        // Nur wirklich neue Messwerte (basierend auf Datum)
-        const existingDates = new Set(this.measurements.map((m) => m.datum));
-        const uniqueNewMeasurements = importMeasurements.filter(
-          (m) => !existingDates.has(m.datum),
-        );
-        this.measurements = [...this.measurements, ...uniqueNewMeasurements];
-        this.showMessage(
-          `${uniqueNewMeasurements.length} neue Messwerte hinzugefügt.`,
-          "success",
-        );
+        this.measurements.push(...importMeasurements);
+        this.showMessage(`${importMeasurements.length} Messwerte hinzugefügt.`, "success");
         break;
     }
 
-    // Delta-Werte neu berechnen
     this.recalculateAllDeltas();
-
-    // Daten speichern
     this.saveData();
-
-    // Modal schließen ZUERST
+    this.updateOverview();
+    this.renderMeasurements();
+    this.renderChart(this.currentChartType); // ← NEU: Chart-Update hinzufügen
     this.closeBackupModal();
-    this.pendingImportData = null;
-
-    // UI Updates danach
-    setTimeout(() => {
-      this.updateOverview();
-      this.renderMeasurements();
-      // Chart auch aktualisieren
-      if (this.getFilteredMeasurements().length > 0) {
-        this.renderChart('cop');
-        // Setze COP als aktiv im Menü
-        this.setActiveMenuChartButton('menu-chart-cop');
-      }
-    }, 100);
   }
 
   // Import abbrechen
   cancelImport() {
     this.pendingImportData = null;
     document.getElementById("import-options").style.display = "none";
-    document.getElementById("import-file-info").textContent =
-      "Keine Datei ausgewählt";
+    document.getElementById("import-file-info").textContent = "Keine Datei ausgewählt";
     document.getElementById("import-file-info").className = "file-info";
     document.getElementById("import-file").value = "";
   }
@@ -1588,17 +1625,17 @@ class HeizungseffizienzApp {
   // Last Backup Info aktualisieren
   updateLastBackupInfo() {
     const lastBackup = localStorage.getItem("heizungseffizienz-last-backup");
-    const infoElement = document.getElementById("last-backup-info");
+    const element = document.getElementById("last-backup-info");
 
     if (lastBackup) {
-      const backupDate = new Date(lastBackup);
-      infoElement.textContent = `Letztes Backup: ${backupDate.toLocaleDateString("de-DE")} ${backupDate.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}`;
+      const date = new Date(lastBackup);
+      element.textContent = `Letztes Backup: ${date.toLocaleDateString("de-DE")} ${date.toLocaleTimeString("de-DE")}`;
     } else {
-      infoElement.textContent = "Noch kein Backup erstellt";
+      element.textContent = "Noch kein Backup erstellt";
     }
   }
 
-  // Helper: Monatsname
+  // Monatsname
   getMonthName(month) {
     const months = [
       "",
@@ -1618,7 +1655,7 @@ class HeizungseffizienzApp {
     return months[month] || "";
   }
 
-  // Verbesserte Update-Banner Funktion:
+  // Update-Banner Funktion
   showUpdateBanner() {
     // Entferne bereits existierende Banner
     const existingBanner = document.querySelector('.update-banner');
@@ -1629,18 +1666,18 @@ class HeizungseffizienzApp {
     const banner = document.createElement("div");
     banner.className = "update-banner";
     banner.innerHTML = `
-    <div class="update-content">
-      <span>🆕 Neue Version verfügbar!</span>
-      <div class="update-buttons">
-        <button id="update-now" class="update-btn primary">
-          Jetzt aktualisieren
-        </button>
-        <button id="update-later" class="update-btn secondary">
-          Später
-        </button>
+      <div class="update-content">
+        <span>🆕 Neue Version verfügbar!</span>
+        <div class="update-buttons">
+          <button id="update-now" class="update-btn primary">
+            Jetzt aktualisieren
+          </button>
+          <button id="update-later" class="update-btn secondary">
+            Später
+          </button>
+        </div>
       </div>
-    </div>
-  `;
+    `;
 
     document.body.appendChild(banner);
     setTimeout(() => banner.classList.add("show"), 100);
@@ -1655,7 +1692,7 @@ class HeizungseffizienzApp {
     });
   }
 
-  // Neue Update-Funktion:
+  // Update durchführen
   async performUpdate() {
     try {
       const registration = await navigator.serviceWorker.getRegistration();
