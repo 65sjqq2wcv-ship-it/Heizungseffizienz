@@ -417,7 +417,7 @@ class HeizungseffizienzApp {
   renderCOPChart(ctx, measurements) {
     const labels = measurements.map((m) => {
       const date = new Date(m.datum);
-      return `$${date.getDate().toString().padStart(2, "0")}.$${(date.getMonth() + 1).toString().padStart(2, "0")}`;
+      return `${date.getDate().toString().padStart(2, "0")}.${(date.getMonth() + 1).toString().padStart(2, "0")}`;
     });
 
     const copData = measurements.map((m) => m.cop);
@@ -523,7 +523,7 @@ class HeizungseffizienzApp {
   renderTemperatureChart(ctx, measurements) {
     const labels = measurements.map((m) => {
       const date = new Date(m.datum);
-      return `$${date.getDate().toString().padStart(2, "0")}.$${(date.getMonth() + 1).toString().padStart(2, "0")}`;
+      return `${date.getDate().toString().padStart(2, "0")}.${(date.getMonth() + 1).toString().padStart(2, "0")}`;
     });
 
     this.currentChart = new Chart(ctx, {
@@ -639,7 +639,7 @@ class HeizungseffizienzApp {
   renderEnergyChart(ctx, measurements) {
     const labels = measurements.map((m) => {
       const date = new Date(m.datum);
-      return `$${date.getDate().toString().padStart(2, "0")}.$${(date.getMonth() + 1).toString().padStart(2, "0")}`;
+      return `${date.getDate().toString().padStart(2, "0")}.${(date.getMonth() + 1).toString().padStart(2, "0")}`;
     });
 
     this.currentChart = new Chart(ctx, {
@@ -739,7 +739,7 @@ class HeizungseffizienzApp {
   renderStartsChart(ctx, measurements) {
     const labels = measurements.map((m) => {
       const date = new Date(m.datum);
-      return `$${date.getDate().toString().padStart(2, "0")}.$${(date.getMonth() + 1).toString().padStart(2, "0")}`;
+      return `${date.getDate().toString().padStart(2, "0")}.${(date.getMonth() + 1).toString().padStart(2, "0")}`;
     });
 
     this.currentChart = new Chart(ctx, {
