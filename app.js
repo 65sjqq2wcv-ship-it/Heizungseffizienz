@@ -1516,7 +1516,7 @@ class HeizungseffizienzApp {
     const exportData = {
       measurements: this.measurements,
       exportDate: new Date().toISOString(),
-      appVersion: "1.8",
+      appVersion: "1.9",
       totalMeasurements: this.measurements.length,
     };
 

@@ -342,6 +342,7 @@ section h2 {
   font-weight: 600;
   cursor: pointer;
   min-height: 44px;
+  width: 100%;
 }
 
 .btn-primary:active {
