@@ -1516,7 +1516,7 @@ class HeizungseffizienzApp {
     const exportData = {
       measurements: this.measurements,
       exportDate: new Date().toISOString(),
-      appVersion: "1.9",
+      appVersion: "1.10",
       totalMeasurements: this.measurements.length,
     };
 
@@ -1541,6 +1541,9 @@ class HeizungseffizienzApp {
     this.updateLastBackupInfo();
 
     this.showMessage("Backup erfolgreich erstellt!", "success");
+    setTimeout(() => {
+            this.closeBackupModal();
+        }, 1500);
   }
 
   // Import Datei handhaben
